@@ -30,6 +30,7 @@
 package gax
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -85,6 +86,15 @@ func TestInvoke(t *testing.T) {
 	}
 }
 
+func waitForContext(t *testing.T, ctx context.Context) error {
+	if _, ok := ctx.Deadline(); !ok {
+		t.Errorf("child context should have deadline")
+		return grpc.Errorf(codes.InvalidArgument, "")
+	}
+	<-ctx.Done()
+	return grpc.Errorf(codes.DeadlineExceeded, "")
+}
+
 func TestInvokeTimeout(t *testing.T) {
 	testOptions := getTestOptions()
 	opt := defaultCallOpt()
@@ -103,13 +113,7 @@ func TestInvokeTimeout(t *testing.T) {
 	callCount := 0
 	waitFunc := func(ctx context.Context, req interface{}) (interface{}, error) {
 		callCount++
-		deadline, ok := ctx.Deadline()
-		if !ok {
-			t.Errorf("child context should have deadline")
-			return nil, grpc.Errorf(codes.InvalidArgument, "")
-		}
-		time.Sleep(deadline.Sub(time.Now()))
-		return nil, grpc.Errorf(codes.DeadlineExceeded, "")
+		return nil, waitForContext(t, ctx)
 	}
 
 	for i, testCase := range testCases {
@@ -127,6 +131,39 @@ func TestInvokeTimeout(t *testing.T) {
 			if grpc.Code(err) != testCase.expectedErrorCode {
 				t.Errorf("[%d]: Error code %v is expected, but got an error %v", testCase.expectedErrorCode, err)
 			}
+		}
+	}
+}
+
+func TestLongInterval(t *testing.T) {
+	testOptions := getTestOptions()
+	testOptions = append(testOptions, WithIntervalInfo(time.Minute, 2*time.Minute, 1.0))
+	waitFunc := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return nil, waitForContext(t, ctx)
+	}
+	testCases := []func() error{
+		func() error {
+			parent_context, _ := context.WithTimeout(context.Background(), time.Duration(1.5*float64(timeUnit)))
+			_, err := Invoke(parent_context, nil, waitFunc, testOptions...)
+			return err
+		},
+		func() error {
+			parent_context, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(time.Duration(1.5*float64(timeUnit)), cancel)
+			_, err := Invoke(parent_context, nil, waitFunc, testOptions...)
+			return err
+		},
+	}
+
+	for i, testCase := range testCases {
+		start := time.Now()
+		err := testCase()
+		callDuration := time.Since(start)
+		if err == nil {
+			t.Errorf("[%d]: Invoke() succeeded unexpectedly.", i)
+		}
+		if callDuration >= time.Minute {
+			t.Errorf("[%d]: Invoke() should cancel when the parent is cancelled, but it waits for %v", i, callDuration)
 		}
 	}
 }
@@ -154,7 +191,7 @@ func (streamable *testingPageStreamable) GetData(i int) interface{} {
 func (streamable *testingPageStreamable) NextPage() error {
 	streamable.i++
 	if streamable.i >= len(streamable.values) {
-		return LastPage
+		return io.EOF
 	}
 	return nil
 }

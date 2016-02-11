@@ -39,7 +39,6 @@ package gax
 import (
 	"errors"
 	"io"
-	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -89,7 +88,11 @@ func invoke(ctx context.Context, req interface{}, apiCall func(context.Context, 
 		if !isRetryable(code) {
 			return nil, err
 		}
-		time.Sleep(interval)
+		// Do not invoke time.Sleep() but create a context and wait for its deadline.
+		// This allows to finish the interval earlier if the interval is longer than
+		// ctx's timeout, which could happen when waiting for resource exhausted.
+		intervalCtx, _ := context.WithTimeout(ctx, interval)
+		<-intervalCtx.Done()
 		// Check if the overall context finished during the interval.
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
