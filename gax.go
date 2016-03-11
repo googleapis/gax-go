@@ -54,6 +54,9 @@ var (
 	}
 )
 
+// APICall is the function type to invoke an actual gRPC call. Used by Invoke.
+type APICall func(context.Context, interface{}) (interface{}, error)
+
 func isRetryable(c codes.Code) bool {
 	for _, code := range retryableGrpcCodes {
 		if c == code {
@@ -66,11 +69,11 @@ func isRetryable(c codes.Code) bool {
 // Invoke calls |apiCall| considering optional parameters. It will care retries and timeouts well.
 // The entire timeout should be specified in |ctx|, otherwise it will retry the default attempts
 // with the default timeout.
-func Invoke(ctx context.Context, req interface{}, apiCall func(context.Context, interface{}) (interface{}, error), opts ...CallOption) (interface{}, error) {
+func Invoke(ctx context.Context, req interface{}, apiCall APICall, opts ...CallOption) (interface{}, error) {
 	return invoke(ctx, req, apiCall, buildCallOpt(opts...))
 }
 
-func invoke(ctx context.Context, req interface{}, apiCall func(context.Context, interface{}) (interface{}, error), option *callOpt) (resp interface{}, err error) {
+func invoke(ctx context.Context, req interface{}, apiCall APICall, option *callOpt) (resp interface{}, err error) {
 	timeout := option.timeout.initial()
 	interval := option.retryInterval.initial()
 	for attempts := 0; attempts < option.maxAttempts; attempts++ {
