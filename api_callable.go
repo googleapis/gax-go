@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// Represents a GRPC call stub.
-type APICall func(context.Context, interface{}) (interface{}, error)
+// A user defined call stub.
+type APICall func(context.Context) error
 
 // scaleDuration returns the product of a and mult.
 func scaleDuration(a time.Duration, mult float64) time.Duration {
@@ -17,59 +17,51 @@ func scaleDuration(a time.Duration, mult float64) time.Duration {
 	return time.Duration(ns)
 }
 
-// stubWithRetry returns a wrapper for stub with an exponential backoff retry
-// mechanism based on the values provided in retrySettings.
-func stubWithRetry(stub APICall, retrySettings retrySettings) APICall {
-	return func(ctx context.Context, req interface{}) (resp interface{}, err error) {
-		backoffSettings := retrySettings.backoffSettings
-		// Forces ctx to expire after a deadline.
-		ctx, _ = context.WithTimeout(ctx, backoffSettings.totalTimeout)
-
-		delay := backoffSettings.delayTimeoutSettings.initial
-		timeout := backoffSettings.rpcTimeoutSettings.initial
-
-		for {
-			// If the deadline is exceeded...
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			timeoutCtx, _ := context.WithTimeout(ctx, backoffSettings.rpcTimeoutSettings.max)
-			timeoutCtx, _ = context.WithTimeout(timeoutCtx, timeout)
-			resp, err = stub(timeoutCtx, req)
-			code := grpc.Code(err)
-			if code == codes.OK {
-				return resp, err
-			}
-			if !retrySettings.retryCodes[code] {
-				return nil, err
-			}
-			delayCtx, _ := context.WithTimeout(ctx, backoffSettings.delayTimeoutSettings.max)
-			delayCtx, _ = context.WithTimeout(delayCtx, delay)
-			<-delayCtx.Done()
-
-			delay = scaleDuration(delay, backoffSettings.delayTimeoutSettings.multiplier)
-			timeout = scaleDuration(timeout, backoffSettings.rpcTimeoutSettings.multiplier)
+// invokeWithRetry calls stub using an exponential backoff retry mechanism
+// based on the values provided in retrySettings.
+func invokeWithRetry(ctx context.Context, stub APICall, retrySettings retrySettings) error {
+	backoffSettings := retrySettings.backoffSettings
+	// Forces ctx to expire after a deadline.
+	childCtx, _ := context.WithTimeout(ctx, backoffSettings.totalTimeout)
+	delay := backoffSettings.delayTimeoutSettings.initial
+	timeout := backoffSettings.rpcTimeoutSettings.initial
+	for {
+		// If the deadline is exceeded...
+		if childCtx.Err() != nil {
+			return childCtx.Err()
 		}
-		return
+		timeoutCtx, _ := context.WithTimeout(childCtx, backoffSettings.rpcTimeoutSettings.max)
+		timeoutCtx, _ = context.WithTimeout(timeoutCtx, timeout)
+		err := stub(timeoutCtx)
+		code := grpc.Code(err)
+		if code == codes.OK {
+			return nil
+		}
+		if !retrySettings.retryCodes[code] {
+			return err
+		}
+		delayCtx, _ := context.WithTimeout(childCtx, backoffSettings.delayTimeoutSettings.max)
+		delayCtx, _ = context.WithTimeout(delayCtx, delay)
+		<-delayCtx.Done()
+
+		delay = scaleDuration(delay, backoffSettings.delayTimeoutSettings.multiplier)
+		timeout = scaleDuration(timeout, backoffSettings.rpcTimeoutSettings.multiplier)
 	}
+	return nil
 }
 
-// stubWithTimeout returns a wrapper for stub with a timeout applied to its
-// context.
-func stubWithTimeout(stub APICall, timeout time.Duration) APICall {
-	return func(ctx context.Context, data interface{}) (interface{}, error) {
-		childCtx, _ := context.WithTimeout(ctx, timeout)
-		return stub(childCtx, data)
-	}
+// invokeWithTimeout calls stub with a timeout applied to its context.
+func invokeWithTimeout(ctx context.Context, stub APICall, timeout time.Duration) error {
+	childCtx, _ := context.WithTimeout(ctx, timeout)
+	return stub(childCtx)
 }
 
-// CreateAPICall returns a wrapper for stub governed by the values provided in
-// settings.
-func CreateAPICall(stub APICall, opts ...CallOption) APICall {
+// Invoke calls stub with a child of context modified by the specified options.
+func Invoke(ctx context.Context, stub APICall, opts ...CallOption) error {
 	settings := &callSettings{}
 	callOptions(opts).Resolve(settings)
 	if len(settings.retrySettings.retryCodes) > 0 {
-		return stubWithRetry(stub, settings.retrySettings)
+		return invokeWithRetry(ctx, stub, settings.retrySettings)
 	}
-	return stubWithTimeout(stub, settings.timeout)
+	return invokeWithTimeout(ctx, stub, settings.timeout)
 }
