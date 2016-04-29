@@ -61,7 +61,9 @@ func TestInvokeWithDeadlineAfterRetries(t *testing.T) {
 		}
 		count += 1
 		<-childCtx.Done()
-		return grpc.Errorf(codes.DeadlineExceeded, "")
+		// Workaround for `go vet`: https://github.com/grpc/grpc-go/issues/90
+		errf := grpc.Errorf
+		return errf(codes.DeadlineExceeded, "")
 	}, testCallSettings...)
 	if count != 3 || err == nil {
 		t.Errorf("expected call to retry 3 times and return an error")
@@ -80,7 +82,8 @@ func TestInvokeWithOKResponseAfterRetries(t *testing.T) {
 			return nil
 		}
 		<-childCtx.Done()
-		return grpc.Errorf(codes.DeadlineExceeded, "")
+		errf := grpc.Errorf
+		return errf(codes.DeadlineExceeded, "")
 	}, testCallSettings...)
 	if count != 3 || resp != 42 || err != nil {
 		t.Errorf("expected call to retry 3 times, return nil, and set resp to 42")

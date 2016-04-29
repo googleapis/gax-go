@@ -47,7 +47,6 @@ func invokeWithRetry(ctx context.Context, stub APICall, retrySettings retrySetti
 		delay = scaleDuration(delay, backoffSettings.delayTimeoutSettings.multiplier)
 		timeout = scaleDuration(timeout, backoffSettings.rpcTimeoutSettings.multiplier)
 	}
-	return nil
 }
 
 // invokeWithTimeout calls stub with a timeout applied to its context.
