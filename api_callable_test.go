@@ -19,29 +19,31 @@ var (
 	}
 )
 
-func TestCreateAPICallWithTimeout(t *testing.T) {
+func TestInvokeWithTimeout(t *testing.T) {
 	ctx := context.Background()
 	var ok bool
-	CreateAPICall(func(ctx context.Context, req interface{}) (interface{}, error) {
-		_, ok = ctx.Deadline()
-		return nil, nil
-	}, WithTimeout(10000*time.Millisecond))(ctx, nil)
+	Invoke(ctx, func(childCtx context.Context) error {
+		_, ok = childCtx.Deadline()
+		return nil
+	}, WithTimeout(10000*time.Millisecond))
 	if !ok {
 		t.Errorf("expected call to have an assigned timeout")
 	}
 }
 
-func TestCreateApiCallWithOKResponseWithTimeout(t *testing.T) {
+func TestInvokeWithOKResponseWithTimeout(t *testing.T) {
 	ctx := context.Background()
-	resp, err := CreateAPICall(func(ctx context.Context, req interface{}) (interface{}, error) {
-		return 42, nil
-	}, WithTimeout(10000*time.Millisecond))(ctx, nil)
-	if resp.(int) != 42 || err != nil {
-		t.Errorf("expected call to return (42, nil)")
+	var resp int
+	err := Invoke(ctx, func(childCtx context.Context) error {
+		resp = 42
+		return nil
+	}, WithTimeout(10000*time.Millisecond))
+	if resp != 42 || err != nil {
+		t.Errorf("expected call to return nil and set resp to 42")
 	}
 }
 
-func TestCreateApiCallWithDeadlineAfterRetries(t *testing.T) {
+func TestInvokeWithDeadlineAfterRetries(t *testing.T) {
 	ctx := context.Background()
 	count := 0
 
@@ -52,33 +54,35 @@ func TestCreateApiCallWithDeadlineAfterRetries(t *testing.T) {
 		450 * time.Millisecond,
 	}
 
-	_, err := CreateAPICall(func(ctx context.Context, req interface{}) (interface{}, error) {
+	err := Invoke(ctx, func(childCtx context.Context) error {
 		t.Log("delta:", time.Now().Sub(now.Add(expectedTimeout[count])))
 		if !time.Now().After(now.Add(expectedTimeout[count])) {
 			t.Errorf("expected %s to pass before this call", expectedTimeout[count])
 		}
 		count += 1
-		<-ctx.Done()
-		return nil, grpc.Errorf(codes.DeadlineExceeded, "")
-	}, testCallSettings...)(ctx, nil)
+		<-childCtx.Done()
+		return grpc.Errorf(codes.DeadlineExceeded, "")
+	}, testCallSettings...)
 	if count != 3 || err == nil {
 		t.Errorf("expected call to retry 3 times and return an error")
 	}
 }
 
-func TestCreateApiCallWithOKResponseAfterRetries(t *testing.T) {
+func TestInvokeWithOKResponseAfterRetries(t *testing.T) {
 	ctx := context.Background()
 	count := 0
 
-	resp, err := CreateAPICall(func(ctx context.Context, req interface{}) (interface{}, error) {
+	var resp int
+	err := Invoke(ctx, func(childCtx context.Context) error {
 		count += 1
 		if count == 3 {
-			return 42, nil
+			resp = 42
+			return nil
 		}
-		<-ctx.Done()
-		return nil, grpc.Errorf(codes.DeadlineExceeded, "")
-	}, testCallSettings...)(ctx, nil)
-	if count != 3 || resp.(int) != 42 || err != nil {
-		t.Errorf("expected call to retry 3 times and return (42, nil)")
+		<-childCtx.Done()
+		return grpc.Errorf(codes.DeadlineExceeded, "")
+	}, testCallSettings...)
+	if count != 3 || resp != 42 || err != nil {
+		t.Errorf("expected call to retry 3 times, return nil, and set resp to 42")
 	}
 }
