@@ -6,6 +6,10 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+const (
+	Version = "0.10.0"
+)
+
 type CallOption interface {
 	Resolve(*callSettings)
 }
