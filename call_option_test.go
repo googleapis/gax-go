@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var (
-	expected = &callSettings{
+func TestCallOptionsPieceByPiece(t *testing.T) {
+	expected := &callSettings{
 		time.Second * 1,
 		retrySettings{
 			map[codes.Code]bool{codes.Unavailable: true, codes.DeadlineExceeded: true},
@@ -20,9 +20,7 @@ var (
 			},
 		},
 	}
-)
 
-func TestCallOptionsPieceByPiece(t *testing.T) {
 	settings := &callSettings{}
 	opts := []CallOption{
 		WithTimeout(time.Second * 1),
@@ -31,7 +29,7 @@ func TestCallOptionsPieceByPiece(t *testing.T) {
 		WithRPCTimeoutSettings(time.Second*5, time.Second*7, 6.0),
 		WithTotalRetryTimeout(time.Second * 8),
 	}
-	callOptions(opts).Resolve(settings)
+	callOptions(opts).resolve(settings)
 
 	if !reflect.DeepEqual(settings, expected) {
 		t.Errorf("settings don't match their expected configuration")

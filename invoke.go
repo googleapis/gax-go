@@ -58,7 +58,7 @@ func invokeWithTimeout(ctx context.Context, stub APICall, timeout time.Duration)
 // Invoke calls stub with a child of context modified by the specified options.
 func Invoke(ctx context.Context, stub APICall, opts ...CallOption) error {
 	settings := &callSettings{}
-	callOptions(opts).Resolve(settings)
+	callOptions(opts).resolve(settings)
 	if len(settings.retrySettings.retryCodes) > 0 {
 		return invokeWithRetry(ctx, stub, settings.retrySettings)
 	}
