@@ -7,14 +7,14 @@ import (
 )
 
 type CallOption interface {
-	Resolve(*callSettings)
+	resolve(*callSettings)
 }
 
 type callOptions []CallOption
 
-func (opts callOptions) Resolve(s *callSettings) *callSettings {
+func (opts callOptions) resolve(s *callSettings) *callSettings {
 	for _, opt := range opts {
-		opt.Resolve(s)
+		opt.resolve(s)
 	}
 	return s
 }
@@ -46,7 +46,7 @@ type multipliableDuration struct {
 
 type withTimeout time.Duration
 
-func (w withTimeout) Resolve(s *callSettings) {
+func (w withTimeout) resolve(s *callSettings) {
 	s.timeout = time.Duration(w)
 }
 
@@ -58,7 +58,7 @@ func WithTimeout(timeout time.Duration) CallOption {
 
 type withRetryCodes []codes.Code
 
-func (w withRetryCodes) Resolve(s *callSettings) {
+func (w withRetryCodes) resolve(s *callSettings) {
 	s.retrySettings.retryCodes = make(map[codes.Code]bool)
 	for _, code := range []codes.Code(w) {
 		s.retrySettings.retryCodes[code] = true
@@ -73,7 +73,7 @@ func WithRetryCodes(retryCodes []codes.Code) CallOption {
 
 type withDelayTimeoutSettings multipliableDuration
 
-func (w withDelayTimeoutSettings) Resolve(s *callSettings) {
+func (w withDelayTimeoutSettings) resolve(s *callSettings) {
 	s.retrySettings.backoffSettings.delayTimeoutSettings = multipliableDuration(w)
 }
 
@@ -93,7 +93,7 @@ func WithDelayTimeoutSettings(initial time.Duration, max time.Duration, multipli
 
 type withRPCTimeoutSettings multipliableDuration
 
-func (w withRPCTimeoutSettings) Resolve(s *callSettings) {
+func (w withRPCTimeoutSettings) resolve(s *callSettings) {
 	s.retrySettings.backoffSettings.rpcTimeoutSettings = multipliableDuration(w)
 }
 
@@ -110,7 +110,7 @@ func WithRPCTimeoutSettings(initial time.Duration, max time.Duration, multiplier
 
 type withTotalRetryTimeout time.Duration
 
-func (w withTotalRetryTimeout) Resolve(s *callSettings) {
+func (w withTotalRetryTimeout) resolve(s *callSettings) {
 	s.retrySettings.backoffSettings.totalTimeout = time.Duration(w)
 }
 
