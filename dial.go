@@ -11,10 +11,10 @@ import (
 )
 
 func DialGRPC(ctx context.Context, opts ...ClientOption) (*grpc.ClientConn, error) {
-	settings := &clientSettings{}
-	clientOptions(opts).resolve(settings)
+	settings := &ClientSettings{}
+	clientOptions(opts).Resolve(settings)
 
-	tokenSource, err := google.DefaultTokenSource(ctx, settings.scopes...)
+	tokenSource, err := google.DefaultTokenSource(ctx, settings.Scopes...)
 	if err != nil {
 		return nil, fmt.Errorf("google.DefaultTokenSource: %v", err)
 	}
@@ -22,5 +22,5 @@ func DialGRPC(ctx context.Context, opts ...ClientOption) (*grpc.ClientConn, erro
 		grpc.WithPerRPCCredentials(oauth.TokenSource{TokenSource: tokenSource}),
 		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
 	}
-	return grpc.Dial(settings.endpoint, grpcOpts...)
+	return grpc.Dial(settings.Endpoint, grpcOpts...)
 }

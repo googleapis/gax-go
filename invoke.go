@@ -19,33 +19,33 @@ func scaleDuration(a time.Duration, mult float64) time.Duration {
 
 // invokeWithRetry calls stub using an exponential backoff retry mechanism
 // based on the values provided in retrySettings.
-func invokeWithRetry(ctx context.Context, stub APICall, retrySettings retrySettings) error {
-	backoffSettings := retrySettings.backoffSettings
+func invokeWithRetry(ctx context.Context, stub APICall, retrySettings RetrySettings) error {
+	backoffSettings := retrySettings.BackoffSettings
 	// Forces ctx to expire after a deadline.
-	childCtx, _ := context.WithTimeout(ctx, backoffSettings.totalTimeout)
-	delay := backoffSettings.delayTimeoutSettings.initial
-	timeout := backoffSettings.rpcTimeoutSettings.initial
+	childCtx, _ := context.WithTimeout(ctx, backoffSettings.TotalTimeout)
+	delay := backoffSettings.DelayTimeoutSettings.Initial
+	timeout := backoffSettings.RPCTimeoutSettings.Initial
 	for {
 		// If the deadline is exceeded...
 		if childCtx.Err() != nil {
 			return childCtx.Err()
 		}
-		timeoutCtx, _ := context.WithTimeout(childCtx, backoffSettings.rpcTimeoutSettings.max)
+		timeoutCtx, _ := context.WithTimeout(childCtx, backoffSettings.RPCTimeoutSettings.Max)
 		timeoutCtx, _ = context.WithTimeout(timeoutCtx, timeout)
 		err := stub(timeoutCtx)
 		code := grpc.Code(err)
 		if code == codes.OK {
 			return nil
 		}
-		if !retrySettings.retryCodes[code] {
+		if !retrySettings.RetryCodes[code] {
 			return err
 		}
-		delayCtx, _ := context.WithTimeout(childCtx, backoffSettings.delayTimeoutSettings.max)
+		delayCtx, _ := context.WithTimeout(childCtx, backoffSettings.DelayTimeoutSettings.Max)
 		delayCtx, _ = context.WithTimeout(delayCtx, delay)
 		<-delayCtx.Done()
 
-		delay = scaleDuration(delay, backoffSettings.delayTimeoutSettings.multiplier)
-		timeout = scaleDuration(timeout, backoffSettings.rpcTimeoutSettings.multiplier)
+		delay = scaleDuration(delay, backoffSettings.DelayTimeoutSettings.Multiplier)
+		timeout = scaleDuration(timeout, backoffSettings.RPCTimeoutSettings.Multiplier)
 	}
 }
 
@@ -57,10 +57,10 @@ func invokeWithTimeout(ctx context.Context, stub APICall, timeout time.Duration)
 
 // Invoke calls stub with a child of context modified by the specified options.
 func Invoke(ctx context.Context, stub APICall, opts ...CallOption) error {
-	settings := &callSettings{}
-	callOptions(opts).resolve(settings)
-	if len(settings.retrySettings.retryCodes) > 0 {
-		return invokeWithRetry(ctx, stub, settings.retrySettings)
+	settings := &CallSettings{}
+	callOptions(opts).Resolve(settings)
+	if len(settings.RetrySettings.RetryCodes) > 0 {
+		return invokeWithRetry(ctx, stub, settings.RetrySettings)
 	}
-	return invokeWithTimeout(ctx, stub, settings.timeout)
+	return invokeWithTimeout(ctx, stub, settings.Timeout)
 }
