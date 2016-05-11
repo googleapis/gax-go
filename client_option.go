@@ -14,37 +14,39 @@ func (opts clientOptions) Resolve(s *ClientSettings) *ClientSettings {
 }
 
 type ClientSettings struct {
-	APIName    string
-	APIVersion string
-	Endpoint   string
-	Scopes     []string
+	AppName     string
+	AppVersion  string
+	Endpoint    string
+	Scopes      []string
+	CallOptions map[string][]CallOption
 }
 
 func (w ClientSettings) Resolve(s *ClientSettings) {
-	s.APIName = w.APIName
-	s.APIVersion = w.APIVersion
+	s.AppName = w.AppName
+	s.AppVersion = w.AppVersion
 	s.Endpoint = w.Endpoint
-	s.Scopes = append([]string{}, w.Scopes...)
+	WithScopes(w.Scopes...).Resolve(s)
+	WithCallOptions(w.CallOptions).Resolve(s)
 }
 
-type withAPIName string
+type withAppName string
 
-func (w withAPIName) Resolve(s *ClientSettings) {
-	s.APIName = string(w)
+func (w withAppName) Resolve(s *ClientSettings) {
+	s.AppName = string(w)
 }
 
-func WithAPIName(apiName string) ClientOption {
-	return withAPIName(apiName)
+func WithAppName(appName string) ClientOption {
+	return withAppName(appName)
 }
 
-type withAPIVersion string
+type withAppVersion string
 
-func (w withAPIVersion) Resolve(s *ClientSettings) {
-	s.APIVersion = string(w)
+func (w withAppVersion) Resolve(s *ClientSettings) {
+	s.AppVersion = string(w)
 }
 
-func WithAPIVersion(apiVersion string) ClientOption {
-	return withAPIVersion(apiVersion)
+func WithAppVersion(appVersion string) ClientOption {
+	return withAppVersion(appVersion)
 }
 
 type withEndpoint string
@@ -60,9 +62,22 @@ func WithEndpoint(endpoint string) ClientOption {
 type withScopes []string
 
 func (w withScopes) Resolve(s *ClientSettings) {
-	s.Scopes = append(s.Scopes[:0], w...)
+	s.Scopes = append([]string{}, w...)
 }
 
 func WithScopes(scopes ...string) ClientOption {
 	return withScopes(scopes)
+}
+
+type withCallOptions map[string][]CallOption
+
+func (w withCallOptions) Resolve(s *ClientSettings) {
+	s.CallOptions = make(map[string][]CallOption, len(w))
+	for key, value := range w {
+		s.CallOptions[key] = value
+	}
+}
+
+func WithCallOptions(callOptions map[string][]CallOption) ClientOption {
+	return withCallOptions(callOptions)
 }
