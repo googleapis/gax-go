@@ -7,47 +7,57 @@ import (
 )
 
 type CallOption interface {
-	resolve(*callSettings)
+	Resolve(*CallSettings)
 }
 
 type callOptions []CallOption
 
-func (opts callOptions) resolve(s *callSettings) *callSettings {
+func (opts callOptions) Resolve(s *CallSettings) *CallSettings {
 	for _, opt := range opts {
-		opt.resolve(s)
+		opt.Resolve(s)
 	}
 	return s
 }
 
 // Encapsulates the call settings for a particular API call.
-type callSettings struct {
-	timeout       time.Duration
-	retrySettings retrySettings
+type CallSettings struct {
+	Timeout       time.Duration
+	RetrySettings RetrySettings
 }
 
 // Per-call configurable settings for retrying upon transient failure.
-type retrySettings struct {
-	retryCodes      map[codes.Code]bool
-	backoffSettings backoffSettings
+type RetrySettings struct {
+	RetryCodes      map[codes.Code]bool
+	BackoffSettings BackoffSettings
 }
 
 // Parameters to the exponential backoff algorithm for retrying.
-type backoffSettings struct {
-	delayTimeoutSettings multipliableDuration
-	rpcTimeoutSettings   multipliableDuration
-	totalTimeout         time.Duration
+type BackoffSettings struct {
+	DelayTimeoutSettings MultipliableDuration
+	RPCTimeoutSettings   MultipliableDuration
+	TotalTimeout         time.Duration
 }
 
-type multipliableDuration struct {
-	initial    time.Duration
-	max        time.Duration
-	multiplier float64
+type MultipliableDuration struct {
+	Initial    time.Duration
+	Max        time.Duration
+	Multiplier float64
+}
+
+func (w CallSettings) Resolve(s *CallSettings) {
+	s.Timeout = w.Timeout
+	s.RetrySettings = w.RetrySettings
+
+	s.RetrySettings.RetryCodes = make(map[codes.Code]bool, len(w.RetrySettings.RetryCodes))
+	for key, value := range w.RetrySettings.RetryCodes {
+		s.RetrySettings.RetryCodes[key] = value
+	}
 }
 
 type withTimeout time.Duration
 
-func (w withTimeout) resolve(s *callSettings) {
-	s.timeout = time.Duration(w)
+func (w withTimeout) Resolve(s *CallSettings) {
+	s.Timeout = time.Duration(w)
 }
 
 // WithTimeout sets the client-side timeout for API calls if the call isn't
@@ -58,10 +68,10 @@ func WithTimeout(timeout time.Duration) CallOption {
 
 type withRetryCodes []codes.Code
 
-func (w withRetryCodes) resolve(s *callSettings) {
-	s.retrySettings.retryCodes = make(map[codes.Code]bool)
+func (w withRetryCodes) Resolve(s *CallSettings) {
+	s.RetrySettings.RetryCodes = make(map[codes.Code]bool)
 	for _, code := range []codes.Code(w) {
-		s.retrySettings.retryCodes[code] = true
+		s.RetrySettings.RetryCodes[code] = true
 	}
 }
 
@@ -71,10 +81,10 @@ func WithRetryCodes(retryCodes []codes.Code) CallOption {
 	return withRetryCodes(retryCodes)
 }
 
-type withDelayTimeoutSettings multipliableDuration
+type withDelayTimeoutSettings MultipliableDuration
 
-func (w withDelayTimeoutSettings) resolve(s *callSettings) {
-	s.retrySettings.backoffSettings.delayTimeoutSettings = multipliableDuration(w)
+func (w withDelayTimeoutSettings) Resolve(s *CallSettings) {
+	s.RetrySettings.BackoffSettings.DelayTimeoutSettings = MultipliableDuration(w)
 }
 
 // WithDelayTimeoutSettings specifies:
@@ -88,13 +98,13 @@ func (w withDelayTimeoutSettings) resolve(s *callSettings) {
 //   value is reached, `RetryDelayMultiplier` will no longer be used to
 //   increase delay time.
 func WithDelayTimeoutSettings(initial time.Duration, max time.Duration, multiplier float64) CallOption {
-	return withDelayTimeoutSettings(multipliableDuration{initial, max, multiplier})
+	return withDelayTimeoutSettings(MultipliableDuration{initial, max, multiplier})
 }
 
-type withRPCTimeoutSettings multipliableDuration
+type withRPCTimeoutSettings MultipliableDuration
 
-func (w withRPCTimeoutSettings) resolve(s *callSettings) {
-	s.retrySettings.backoffSettings.rpcTimeoutSettings = multipliableDuration(w)
+func (w withRPCTimeoutSettings) Resolve(s *CallSettings) {
+	s.RetrySettings.BackoffSettings.RPCTimeoutSettings = MultipliableDuration(w)
 }
 
 // WithRPCTimeoutSettings specifies:
@@ -105,13 +115,13 @@ func (w withRPCTimeoutSettings) resolve(s *callSettings) {
 //   this value is reached, `RPCTimeoutMultiplier` will no longer be used
 //   to increase the timeout.
 func WithRPCTimeoutSettings(initial time.Duration, max time.Duration, multiplier float64) CallOption {
-	return withRPCTimeoutSettings(multipliableDuration{initial, max, multiplier})
+	return withRPCTimeoutSettings(MultipliableDuration{initial, max, multiplier})
 }
 
 type withTotalRetryTimeout time.Duration
 
-func (w withTotalRetryTimeout) resolve(s *callSettings) {
-	s.retrySettings.backoffSettings.totalTimeout = time.Duration(w)
+func (w withTotalRetryTimeout) Resolve(s *CallSettings) {
+	s.RetrySettings.BackoffSettings.TotalTimeout = time.Duration(w)
 }
 
 // WithTotalRetryTimeout sets the total time, in milliseconds, starting from

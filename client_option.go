@@ -1,29 +1,36 @@
 package gax
 
 type ClientOption interface {
-	resolve(*clientSettings)
+	Resolve(*ClientSettings)
 }
 
 type clientOptions []ClientOption
 
-func (opts clientOptions) resolve(s *clientSettings) *clientSettings {
+func (opts clientOptions) Resolve(s *ClientSettings) *ClientSettings {
 	for _, opt := range opts {
-		opt.resolve(s)
+		opt.Resolve(s)
 	}
 	return s
 }
 
-type clientSettings struct {
-	apiName    string
-	apiVersion string
-	endpoint   string
-	scopes     []string
+type ClientSettings struct {
+	APIName    string
+	APIVersion string
+	Endpoint   string
+	Scopes     []string
+}
+
+func (w ClientSettings) Resolve(s *ClientSettings) {
+	s.APIName = w.APIName
+	s.APIVersion = w.APIVersion
+	s.Endpoint = w.Endpoint
+	s.Scopes = append([]string{}, w.Scopes...)
 }
 
 type withAPIName string
 
-func (w withAPIName) resolve(s *clientSettings) {
-	s.apiName = string(w)
+func (w withAPIName) Resolve(s *ClientSettings) {
+	s.APIName = string(w)
 }
 
 func WithAPIName(apiName string) ClientOption {
@@ -32,8 +39,8 @@ func WithAPIName(apiName string) ClientOption {
 
 type withAPIVersion string
 
-func (w withAPIVersion) resolve(s *clientSettings) {
-	s.apiVersion = string(w)
+func (w withAPIVersion) Resolve(s *ClientSettings) {
+	s.APIVersion = string(w)
 }
 
 func WithAPIVersion(apiVersion string) ClientOption {
@@ -42,8 +49,8 @@ func WithAPIVersion(apiVersion string) ClientOption {
 
 type withEndpoint string
 
-func (w withEndpoint) resolve(s *clientSettings) {
-	s.endpoint = string(w)
+func (w withEndpoint) Resolve(s *ClientSettings) {
+	s.Endpoint = string(w)
 }
 
 func WithEndpoint(endpoint string) ClientOption {
@@ -52,8 +59,8 @@ func WithEndpoint(endpoint string) ClientOption {
 
 type withScopes []string
 
-func (w withScopes) resolve(s *clientSettings) {
-	s.scopes = append(s.scopes[:0], w...)
+func (w withScopes) Resolve(s *ClientSettings) {
+	s.Scopes = append(s.Scopes[:0], w...)
 }
 
 func WithScopes(scopes ...string) ClientOption {

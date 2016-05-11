@@ -8,20 +8,20 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func TestCallOptionsPieceByPiece(t *testing.T) {
-	expected := &callSettings{
+func TestCallOptions(t *testing.T) {
+	expected := &CallSettings{
 		time.Second * 1,
-		retrySettings{
+		RetrySettings{
 			map[codes.Code]bool{codes.Unavailable: true, codes.DeadlineExceeded: true},
-			backoffSettings{
-				multipliableDuration{time.Second * 2, time.Second * 4, 3.0},
-				multipliableDuration{time.Second * 5, time.Second * 7, 6.0},
+			BackoffSettings{
+				MultipliableDuration{time.Second * 2, time.Second * 4, 3.0},
+				MultipliableDuration{time.Second * 5, time.Second * 7, 6.0},
 				time.Second * 8,
 			},
 		},
 	}
 
-	settings := &callSettings{}
+	settings := &CallSettings{}
 	opts := []CallOption{
 		WithTimeout(time.Second * 1),
 		WithRetryCodes([]codes.Code{codes.Unavailable, codes.DeadlineExceeded}),
@@ -29,9 +29,21 @@ func TestCallOptionsPieceByPiece(t *testing.T) {
 		WithRPCTimeoutSettings(time.Second*5, time.Second*7, 6.0),
 		WithTotalRetryTimeout(time.Second * 8),
 	}
-	callOptions(opts).resolve(settings)
+	callOptions(opts).Resolve(settings)
 
 	if !reflect.DeepEqual(settings, expected) {
-		t.Errorf("settings don't match their expected configuration")
+		t.Errorf("piece-by-piece settings don't match their expected configuration")
+	}
+
+	settings = &CallSettings{}
+	expected.Resolve(settings)
+
+	if !reflect.DeepEqual(settings, expected) {
+		t.Errorf("whole settings don't match their expected configuration")
+	}
+
+	expected.RetrySettings.RetryCodes[codes.FailedPrecondition] = true
+	if _, ok := settings.RetrySettings.RetryCodes[codes.FailedPrecondition]; ok {
+		t.Errorf("unexpected modification in the RetryCodes map")
 	}
 }
