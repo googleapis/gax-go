@@ -3,6 +3,7 @@ package gax
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestClientOptionsPieceByPiece(t *testing.T) {
@@ -11,14 +12,16 @@ func TestClientOptionsPieceByPiece(t *testing.T) {
 		"v0.1.0",
 		"https://example.com:443",
 		[]string{"https://example.com/auth/helloworld", "https://example.com/auth/otherthing"},
+		map[string][]CallOption{"ListWorlds": []CallOption{WithTimeout(3 * time.Second)}},
 	}
 
 	settings := &ClientSettings{}
 	opts := []ClientOption{
-		WithAPIName("myapi"),
-		WithAPIVersion("v0.1.0"),
+		WithAppName("myapi"),
+		WithAppVersion("v0.1.0"),
 		WithEndpoint("https://example.com:443"),
 		WithScopes("https://example.com/auth/helloworld", "https://example.com/auth/otherthing"),
+		WithCallOptions(map[string][]CallOption{"ListWorlds": []CallOption{WithTimeout(3 * time.Second)}}),
 	}
 	clientOptions(opts).Resolve(settings)
 
@@ -36,5 +39,9 @@ func TestClientOptionsPieceByPiece(t *testing.T) {
 	expected.Scopes[0] = "hello"
 	if settings.Scopes[0] == expected.Scopes[0] {
 		t.Errorf("unexpected modification in Scopes array")
+	}
+	expected.CallOptions["Impossible"] = []CallOption{WithTimeout(42 * time.Second)}
+	if _, ok := settings.CallOptions["Impossible"]; ok {
+		t.Errorf("unexpected modification in CallOptions map")
 	}
 }
