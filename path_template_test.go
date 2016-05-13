@@ -203,6 +203,10 @@ func TestPathTemplateParseErrors(t *testing.T) {
 			"same name multiple times",
 			"foo/{foo}/bar/{foo}",
 		},
+		{
+			"empty string after '='",
+			"foo/{foo=}/bar",
+		},
 	}
 	for _, testCase := range testCases {
 		if pt, err := NewPathTemplate(testCase.template); err == nil {
