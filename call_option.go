@@ -35,7 +35,6 @@ type RetrySettings struct {
 type BackoffSettings struct {
 	DelayTimeoutSettings MultipliableDuration
 	RPCTimeoutSettings   MultipliableDuration
-	TotalTimeout         time.Duration
 }
 
 type MultipliableDuration struct {
@@ -116,17 +115,4 @@ func (w withRPCTimeoutSettings) Resolve(s *CallSettings) {
 //   to increase the timeout.
 func WithRPCTimeoutSettings(initial time.Duration, max time.Duration, multiplier float64) CallOption {
 	return withRPCTimeoutSettings(MultipliableDuration{initial, max, multiplier})
-}
-
-type withTotalRetryTimeout time.Duration
-
-func (w withTotalRetryTimeout) Resolve(s *CallSettings) {
-	s.RetrySettings.BackoffSettings.TotalTimeout = time.Duration(w)
-}
-
-// WithTotalRetryTimeout sets the total time, in milliseconds, starting from
-// when the initial request is sent, after which an error will be returned
-// regardless of the retrying attempts made meanwhile.
-func WithTotalRetryTimeout(totalRetryTimeout time.Duration) CallOption {
-	return withTotalRetryTimeout(totalRetryTimeout)
 }

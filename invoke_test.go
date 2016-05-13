@@ -15,7 +15,7 @@ var (
 		// initial, max, multiplier
 		WithDelayTimeoutSettings(100*time.Millisecond, 300*time.Millisecond, 1.5),
 		WithRPCTimeoutSettings(50*time.Millisecond, 500*time.Millisecond, 3.0),
-		WithTotalRetryTimeout(1000 * time.Millisecond),
+		WithTimeout(1000*time.Millisecond),
 	}
 )
 
@@ -25,7 +25,7 @@ func TestInvokeWithTimeout(t *testing.T) {
 	Invoke(ctx, func(childCtx context.Context) error {
 		_, ok = childCtx.Deadline()
 		return nil
-	}, WithTimeout(10000*time.Millisecond))
+	}, WithTimeout(1000*time.Millisecond))
 	if !ok {
 		t.Errorf("expected call to have an assigned timeout")
 	}
@@ -37,7 +37,7 @@ func TestInvokeWithOKResponseWithTimeout(t *testing.T) {
 	err := Invoke(ctx, func(childCtx context.Context) error {
 		resp = 42
 		return nil
-	}, WithTimeout(10000*time.Millisecond))
+	}, WithTimeout(1000*time.Millisecond))
 	if resp != 42 || err != nil {
 		t.Errorf("expected call to return nil and set resp to 42")
 	}

@@ -19,10 +19,11 @@ func scaleDuration(a time.Duration, mult float64) time.Duration {
 
 // invokeWithRetry calls stub using an exponential backoff retry mechanism
 // based on the values provided in retrySettings.
-func invokeWithRetry(ctx context.Context, stub APICall, retrySettings RetrySettings) error {
-	backoffSettings := retrySettings.BackoffSettings
+func invokeWithRetry(ctx context.Context, stub APICall, callSettings CallSettings) error {
+	retrySettings := callSettings.RetrySettings
+	backoffSettings := callSettings.RetrySettings.BackoffSettings
 	// Forces ctx to expire after a deadline.
-	childCtx, _ := context.WithTimeout(ctx, backoffSettings.TotalTimeout)
+	childCtx, _ := context.WithTimeout(ctx, callSettings.Timeout)
 	delay := backoffSettings.DelayTimeoutSettings.Initial
 	timeout := backoffSettings.RPCTimeoutSettings.Initial
 	for {
@@ -60,7 +61,7 @@ func Invoke(ctx context.Context, stub APICall, opts ...CallOption) error {
 	settings := &CallSettings{}
 	callOptions(opts).Resolve(settings)
 	if len(settings.RetrySettings.RetryCodes) > 0 {
-		return invokeWithRetry(ctx, stub, settings.RetrySettings)
+		return invokeWithRetry(ctx, stub, *settings)
 	}
 	return invokeWithTimeout(ctx, stub, settings.Timeout)
 }
