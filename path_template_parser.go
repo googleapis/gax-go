@@ -62,8 +62,7 @@ func (p *pathTemplateParser) error(msg string) {
 	panic(errString(msg))
 }
 
-// Template = [ "/" ] Segments [ Verb ]
-// We handled Verb in getCustomVerb.
+// Template = [ "/" ] Segments
 func (p *pathTemplateParser) template() []segment {
 	var segs []segment
 	if p.consume('/') {
