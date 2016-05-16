@@ -6,11 +6,12 @@ import (
 	"strings"
 )
 
-// This parser closely follows the syntax of path templates, from
+// This parser follows the syntax of path templates, from
 // https://github.com/googleapis/googleapis/blob/master/google/api/http.proto.
-// The only differences are that we allow the initial slash to be absent, and
-// that we are not strict as https://tools.ietf.org/html/rfc6570
-// about the characters in identifiers and literals.
+// The differences are that there is no custom verb, we allow the initial slash
+// to be absent, and that we are not strict as
+// https://tools.ietf.org/html/rfc6570 about the characters in identifiers and
+// literals.
 
 type pathTemplateParser struct {
 	r                *strings.Reader
@@ -21,10 +22,8 @@ type pathTemplateParser struct {
 }
 
 func parsePathTemplate(template string) (pt *PathTemplate, err error) {
-	segmentPart, verb := getCustomVerb(template)
-
 	p := &pathTemplateParser{
-		r:        strings.NewReader(segmentPart),
+		r:        strings.NewReader(template),
 		seenName: map[string]bool{},
 	}
 
@@ -32,12 +31,12 @@ func parsePathTemplate(template string) (pt *PathTemplate, err error) {
 	// See pathTemplateParser.error, below.
 	defer func() {
 		if x := recover(); x != nil {
-			errmsg, ok := x.(string)
+			errmsg, ok := x.(errString)
 			if !ok {
 				panic(x)
 			}
 			pt = nil
-			err = ParseError{p.runeCount, template, errmsg}
+			err = ParseError{p.runeCount, template, string(errmsg)}
 		}
 	}()
 
@@ -50,13 +49,17 @@ func parsePathTemplate(template string) (pt *PathTemplate, err error) {
 			break
 		}
 	}
-	return &PathTemplate{segments: segs, customVerb: verb}, nil
+	return &PathTemplate{segments: segs}, nil
 
 }
 
+// Used to indicate errors "thrown" by this parser. We don't use string because
+// many parts of the standard library panic with strings.
+type errString string
+
 // Terminates parsing immediately with an error.
 func (p *pathTemplateParser) error(msg string) {
-	panic(msg)
+	panic(errString(msg))
 }
 
 // Template = [ "/" ] Segments [ Verb ]
@@ -132,10 +135,9 @@ func (p *pathTemplateParser) variable() []segment {
 }
 
 // A literal is any sequence of characters other than a few special ones.
-// The list of stop characters is not quite the same as in the template RFC,
-// but is identical to the list used in the custom verb regexp.
+// The list of stop characters is not quite the same as in the template RFC.
 func (p *pathTemplateParser) literal() string {
-	lit := p.consumeUntil(":/*}{=")
+	lit := p.consumeUntil("/*}{=")
 	if lit == "" {
 		p.error("empty literal")
 	}
