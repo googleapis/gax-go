@@ -16,7 +16,6 @@ func TestCallOptions(t *testing.T) {
 			BackoffSettings{
 				MultipliableDuration{time.Second * 2, time.Second * 4, 3.0},
 				MultipliableDuration{time.Second * 5, time.Second * 7, 6.0},
-				time.Second * 8,
 			},
 		},
 	}
@@ -27,7 +26,6 @@ func TestCallOptions(t *testing.T) {
 		WithRetryCodes([]codes.Code{codes.Unavailable, codes.DeadlineExceeded}),
 		WithDelayTimeoutSettings(time.Second*2, time.Second*4, 3.0),
 		WithRPCTimeoutSettings(time.Second*5, time.Second*7, 6.0),
-		WithTotalRetryTimeout(time.Second * 8),
 	}
 	callOptions(opts).Resolve(settings)
 
