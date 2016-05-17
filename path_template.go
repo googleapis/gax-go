@@ -32,12 +32,7 @@ package gax
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
-)
-
-var (
-	customVerbRegexp = regexp.MustCompile(":([^:/*}{=]+)$")
 )
 
 type matcher interface {
@@ -111,16 +106,7 @@ func (pe ParseError) Error() string {
 // See http.proto in github.com/googleapis/googleapis/ for the details of
 // the template syntax.
 type PathTemplate struct {
-	segments   []segment
-	customVerb string
-}
-
-func getCustomVerb(path string) (main string, customVerb string) {
-	matched := customVerbRegexp.FindStringSubmatchIndex(path)
-	if len(matched) == 0 {
-		return path, ""
-	}
-	return path[:matched[0]], path[matched[2]:]
+	segments []segment
 }
 
 // NewPathTemplate parses a path template, and returns a PathTemplate
@@ -143,10 +129,6 @@ func MustCompilePathTemplate(template string) *PathTemplate {
 // Match attempts to match the given path with the template, and returns
 // the mapping of the variable name to the matched pattern string.
 func (pt *PathTemplate) Match(path string) (map[string]string, error) {
-	path, customVerb := getCustomVerb(path)
-	if pt.customVerb != customVerb {
-		return nil, errors.New("custom verb doesn't match")
-	}
 	paths := strings.Split(path, "/")
 	values := map[string]string{}
 	for _, segment := range pt.segments {
@@ -190,8 +172,5 @@ func (pt *PathTemplate) Instantiate(binding map[string]string) (string, error) {
 		}
 	}
 	built := strings.Join(result, "/")
-	if pt.customVerb != "" {
-		built += ":" + pt.customVerb
-	}
 	return built, nil
 }
