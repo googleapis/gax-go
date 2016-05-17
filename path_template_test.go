@@ -45,12 +45,6 @@ func TestPathTemplateMatchInstantiate(t *testing.T) {
 			map[string]string{"$0": "f", "$1": "o", "$2": "bar"},
 		},
 		{
-			"custom verb",
-			"buckets/*/objects/*:custom",
-			"buckets/f/objects/o:custom",
-			map[string]string{"$0": "f", "$1": "o"},
-		},
-		{
 			"path wildcards",
 			"bar/**/foo/*",
 			"bar/foo/foo/foo/bar",
@@ -61,6 +55,12 @@ func TestPathTemplateMatchInstantiate(t *testing.T) {
 			"buckets/{foo}/objects/*",
 			"buckets/foo/objects/bar",
 			map[string]string{"$0": "bar", "foo": "foo"},
+		},
+		{
+			"named binding with colon",
+			"buckets/{foo}/objects/*",
+			"buckets/foo:boo/objects/bar",
+			map[string]string{"$0": "bar", "foo": "foo:boo"},
 		},
 		{
 			"named binding with complex patterns",
@@ -127,11 +127,6 @@ func TestPathTemplateMatchFailure(t *testing.T) {
 			"too many paths at end",
 			"buckets/*/*/objects/*",
 			"buckets/f/o/objects/too/long",
-		},
-		{
-			"wrong custom verb",
-			"buckets/*/objects/*:bar",
-			"buckets/foo/objects/bar:bazz",
 		},
 	}
 	for _, testCase := range testCases {
@@ -202,6 +197,10 @@ func TestPathTemplateParseErrors(t *testing.T) {
 		{
 			"same name multiple times",
 			"foo/{foo}/bar/{foo}",
+		},
+		{
+			"empty string after '='",
+			"foo/{foo=}/bar",
 		},
 	}
 	for _, testCase := range testCases {

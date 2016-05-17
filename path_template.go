@@ -32,12 +32,7 @@ package gax
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
-)
-
-var (
-	customVerbRegexp = regexp.MustCompile(":([^:/*}{=]+)$")
 )
 
 type matcher interface {
@@ -103,80 +98,6 @@ func (pe ParseError) Error() string {
 	return fmt.Sprintf("at %d of template '%s', %s", pe.Pos, pe.Template, pe.Message)
 }
 
-func parseSegments(template string) ([]segment, error) {
-	if len(template) == 0 {
-		return nil, ParseError{0, template, "input is empty"}
-	}
-	var pathWildcardFound bool
-	var segments []segment
-	paths := strings.Split(template, "/")
-	unnamedVariableCount := 0
-	nameSet := map[string]struct{}{}
-	charPos := 0
-	var currentVarName string
-	for i, path := range paths {
-		// Empty path with i == 0 should be allowed for the templates starting with '/'.
-		if path == "" && i != 0 {
-			return nil, ParseError{charPos, template, "empty path component"}
-		}
-		var matcher matcher
-		name := currentVarName
-		if strings.HasPrefix(path, "{") {
-			equalPos := strings.Index(path, "=")
-			if equalPos > 0 {
-				name = path[1:equalPos]
-				path = path[equalPos+1:]
-				if currentVarName != "" {
-					return nil, ParseError{charPos, template, "recursive named bindings are not allowed"}
-				}
-				currentVarName = name
-			} else {
-				if path[len(path)-1] != '}' {
-					return nil, ParseError{charPos, template, "'}' is expected"}
-				}
-				if currentVarName != "" {
-					return nil, ParseError{charPos, template, "recursive named bindings are not allowed"}
-				}
-				name = path[1 : len(path)-1]
-				path = "*"
-			}
-			if _, ok := nameSet[name]; ok {
-				return nil, ParseError{charPos, template, fmt.Sprintf("%s appears multiple times", name)}
-			}
-			nameSet[name] = struct{}{}
-		}
-		if strings.HasPrefix(path, "}") {
-			return nil, ParseError{charPos, template, "} is not allowed here"}
-		}
-		if strings.HasSuffix(path, "}") {
-			path = path[:len(path)-1]
-			currentVarName = ""
-		}
-		if path == "*" {
-			if name == "" {
-				name = fmt.Sprintf("$%d", unnamedVariableCount)
-				unnamedVariableCount++
-			}
-			matcher = wildcardMatcher(0)
-		} else if path == "**" {
-			if pathWildcardFound {
-				return nil, ParseError{charPos, template, "multiple ** isn't allowed"}
-			}
-			pathWildcardFound = true
-			if name == "" {
-				name = fmt.Sprintf("$%d", unnamedVariableCount)
-				unnamedVariableCount++
-			}
-			matcher = pathWildcardMatcher(len(paths) - i - 1)
-		} else {
-			matcher = labelMatcher(path)
-		}
-		segments = append(segments, segment{matcher, name})
-		charPos += len(path) + 1
-	}
-	return segments, nil
-}
-
 // PathTemplate manages the template to build and match with paths used
 // by API services. It holds a template and variable names in it, and
 // it can extract matched patterns from a path string or build a path
@@ -185,27 +106,13 @@ func parseSegments(template string) ([]segment, error) {
 // See http.proto in github.com/googleapis/googleapis/ for the details of
 // the template syntax.
 type PathTemplate struct {
-	segments   []segment
-	customVerb string
-}
-
-func getCustomVerb(path string) (main string, customVerb string) {
-	matched := customVerbRegexp.FindStringSubmatchIndex(path)
-	if len(matched) == 0 {
-		return path, ""
-	}
-	return path[:matched[0]], path[matched[2]:]
+	segments []segment
 }
 
 // NewPathTemplate parses a path template, and returns a PathTemplate
 // instance if successful.
 func NewPathTemplate(template string) (*PathTemplate, error) {
-	template, customVerb := getCustomVerb(template)
-	segments, err := parseSegments(template)
-	if err != nil {
-		return nil, err
-	}
-	return &PathTemplate{segments: segments, customVerb: customVerb}, nil
+	return parsePathTemplate(template)
 }
 
 // MustCompilePathTemplate is like NewPathTemplate but panics if the
@@ -222,10 +129,6 @@ func MustCompilePathTemplate(template string) *PathTemplate {
 // Match attempts to match the given path with the template, and returns
 // the mapping of the variable name to the matched pattern string.
 func (pt *PathTemplate) Match(path string) (map[string]string, error) {
-	path, customVerb := getCustomVerb(path)
-	if pt.customVerb != customVerb {
-		return nil, errors.New("custom verb doesn't match")
-	}
 	paths := strings.Split(path, "/")
 	values := map[string]string{}
 	for _, segment := range pt.segments {
@@ -269,8 +172,5 @@ func (pt *PathTemplate) Instantiate(binding map[string]string) (string, error) {
 		}
 	}
 	built := strings.Join(result, "/")
-	if pt.customVerb != "" {
-		built += ":" + pt.customVerb
-	}
 	return built, nil
 }
