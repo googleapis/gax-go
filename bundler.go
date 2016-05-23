@@ -15,12 +15,17 @@ const (
 )
 
 var (
-	ErrOverflow      = errors.New("bundler reached buffered byte limit")
+	// ErrOverflow indicates that Bundler's stored bytes exceeds its BufferedByteLimit.
+	ErrOverflow = errors.New("bundler reached buffered byte limit")
+
+	// ErrOversizedItem indicates that an item's size exceeds the maximum bundle size.
 	ErrOversizedItem = errors.New("item size exceeds bundle byte limit")
 )
 
+// A Bundler collects items added to it into a bundle until the bundle
+// exceeds a given size, then calls a user-provided function to handle the bundle.
 type Bundler struct {
-	// Counting from the time that the first message is added to a bundle, once
+	// Starting from the time that the first message is added to a bundle, once
 	// this delay has passed, handle the bundle.
 	DelayThreshold time.Duration
 
@@ -30,13 +35,12 @@ type Bundler struct {
 	// DefaultBundleCountThreshold.
 	BundleCountThreshold int
 
-	// Once the number of bytes in current bundle reaches this threshold, send
-	// the bundle, even if neither the delay or count thresholds have been
-	// exceeded yet. The default is DefaultBundleByteThreshold.
+	// Once the number of bytes in current bundle reaches this threshold, handle
+	// the bundle. The default is DefaultBundleByteThreshold. This triggers handling,
+	// but does not cap the total size of a bundle.
 	BundleByteThreshold int
 
-	// The maximum size of a bundle, in bytes.
-	// Zero means unlimited.
+	// The maximum size of a bundle, in bytes. Zero means unlimited.
 	BundleByteLimit int
 
 	// The maximum number of bytes that the Bundler will keep in memory before
@@ -61,6 +65,13 @@ type bundle struct {
 	size  int           // size in bytes of all items
 }
 
+// NewBundler creates a new Bundler.
+//
+// itemExample is a value of the type that will be bundled. For example, if you
+// want to create bundles of *Entry, you could pass &Entry{} for itemExample.
+//
+// handler is a function that will be called on each bundle. If itemExample is
+// of type T, the the argument to handler is of type []T.
 func NewBundler(itemExample interface{}, handler func(interface{})) *Bundler {
 	b := &Bundler{
 		DelayThreshold:       DefaultDelayThreshold,
@@ -74,7 +85,6 @@ func NewBundler(itemExample interface{}, handler func(interface{})) *Bundler {
 		handlec:       make(chan int, 1),
 		calledc:       make(chan struct{}),
 		timer:         time.NewTimer(1000 * time.Hour), // harmless initial timeout
-
 	}
 	b.curBundle.items = b.itemSliceZero
 	go b.background()
@@ -107,7 +117,7 @@ func (b *Bundler) Add(item interface{}, size int) error {
 	// If adding this item to the current bundle would cause it to exceed the
 	// maximum bundle size, close the current bundle and start a new one.
 	if b.BundleByteLimit > 0 && b.curBundle.size+size > b.BundleByteLimit {
-		b.closeBundle()
+		b.closeAndHandleBundle()
 	}
 	// Add the item.
 	b.curBundle.items = reflect.Append(b.curBundle.items, reflect.ValueOf(item))
@@ -119,11 +129,11 @@ func (b *Bundler) Add(item interface{}, size int) error {
 	}
 	// If the current bundle equals the count threshold, close it.
 	if b.curBundle.items.Len() == b.BundleCountThreshold {
-		b.closeBundle()
+		b.closeAndHandleBundle()
 	}
 	// If the current bundle equals or exceeds the byte threshold, close it.
 	if b.curBundle.size >= b.BundleByteThreshold {
-		b.closeBundle()
+		b.closeAndHandleBundle()
 	}
 	return nil
 }
@@ -131,14 +141,14 @@ func (b *Bundler) Add(item interface{}, size int) error {
 // Flush waits until all items in the Bundler have been handled.
 func (b *Bundler) Flush() {
 	b.mu.Lock()
-	b.closeBundle()
+	b.closeAndHandleBundle()
 	calledc := b.calledc // remember locally, because it may change
 	b.mu.Unlock()
-	// TODO: !!! may wait forever if there's nothing to handle
 	<-calledc
 }
 
 // Close calls Flush, then shuts down the Bundler.
+// Close should always be called on a Bundler.
 // You must not call Add after you call Close.
 func (b *Bundler) Close() {
 	b.Flush()
@@ -148,22 +158,30 @@ func (b *Bundler) Close() {
 	close(b.donec)
 }
 
-// closeBundle finishes the current bundle, adds it to the list of closed
-// bundles and informs the background goroutine that there are bundles ready
-// for processing.
-//
-// This should always be called with b.mu held.
-func (b *Bundler) closeBundle() {
-	if b.curBundle.items.Len() > 0 {
-		b.closedBundles = append(b.closedBundles, b.curBundle)
-		b.curBundle.items = b.itemSliceZero
-		b.curBundle.size = 0
+func (b *Bundler) closeAndHandleBundle() {
+	if b.closeBundle() {
+		// We have created a closed bundle.
 		// Send to handlec without blocking.
 		select {
 		case b.handlec <- 1:
 		default:
 		}
 	}
+}
+
+// closeBundle finishes the current bundle, adds it to the list of closed
+// bundles and informs the background goroutine that there are bundles ready
+// for processing.
+//
+// This should always be called with b.mu held.
+func (b *Bundler) closeBundle() bool {
+	if b.curBundle.items.Len() > 0 {
+		b.closedBundles = append(b.closedBundles, b.curBundle)
+		b.curBundle.items = b.itemSliceZero
+		b.curBundle.size = 0
+		return true
+	}
+	return false
 }
 
 // background runs in a separate goroutine, waiting for events and handling
