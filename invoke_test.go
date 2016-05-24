@@ -15,7 +15,7 @@ var (
 		// initial, max, multiplier
 		WithDelayTimeoutSettings(100*time.Millisecond, 300*time.Millisecond, 1.5),
 		WithRPCTimeoutSettings(50*time.Millisecond, 500*time.Millisecond, 3.0),
-		WithTimeout(1000*time.Millisecond),
+		WithTimeout(1000 * time.Millisecond),
 	}
 )
 

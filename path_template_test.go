@@ -31,7 +31,7 @@ package gax
 
 import "testing"
 
-func TestPathTemplateMatchInstantiate(t *testing.T) {
+func TestPathTemplateMatchRender(t *testing.T) {
 	testCases := []struct {
 		message  string
 		template string
@@ -100,7 +100,7 @@ func TestPathTemplateMatchInstantiate(t *testing.T) {
 		if len(values) != 0 {
 			t.Errorf("[%s] The matched data has unexpected keys: %v", testCase.message, values)
 		}
-		built, err := pt.Instantiate(testCase.values)
+		built, err := pt.Render(testCase.values)
 		if err != nil || built != testCase.path {
 			t.Errorf("[%s] Built path '%s' is different from the expected '%s', %v", testCase.message, built, testCase.path, err)
 		}
@@ -142,8 +142,8 @@ func TestPathTemplateMatchFailure(t *testing.T) {
 	}
 }
 
-func TestPathTemplateInstantiateTooManyValues(t *testing.T) {
-	// Test cases where Instantiate() succeeds but Match() doesn't return the same map.
+func TestPathTemplateRenderTooManyValues(t *testing.T) {
+	// Test cases where Render() succeeds but Match() doesn't return the same map.
 	testCases := []struct {
 		message  string
 		template string
@@ -163,7 +163,7 @@ func TestPathTemplateInstantiateTooManyValues(t *testing.T) {
 			t.Errorf("[%s] Failed to parse template %s (error %v)", testCase.message, testCase.template, err)
 			continue
 		}
-		if result, err := pt.Instantiate(testCase.values); err != nil || result != testCase.expected {
+		if result, err := pt.Render(testCase.values); err != nil || result != testCase.expected {
 			t.Errorf("[%s] Failed to build the path (expected '%s' but returned '%s'", testCase.message, testCase.expected, result)
 		}
 	}
