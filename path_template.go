@@ -152,9 +152,9 @@ func (pt *PathTemplate) Match(path string) (map[string]string, error) {
 	return values, nil
 }
 
-// Instantiate creates a path string from its template and the binding from
+// Render creates a path string from its template and the binding from
 // the variable name to the value.
-func (pt *PathTemplate) Instantiate(binding map[string]string) (string, error) {
+func (pt *PathTemplate) Render(binding map[string]string) (string, error) {
 	result := make([]string, 0, len(pt.segments))
 	var lastVariableName string
 	for _, segment := range pt.segments {
