@@ -19,6 +19,19 @@ var (
 	}
 )
 
+func TestInvokeWithContextTimeout(t *testing.T) {
+	ctx := context.Background()
+	deadline := time.Now().Add(42 * time.Second)
+	ctx, _ = context.WithDeadline(ctx, deadline)
+	Invoke(ctx, func(childCtx context.Context) error {
+		d, ok := childCtx.Deadline()
+		if !ok || d != deadline {
+			t.Errorf("expected call to have original timeout")
+		}
+		return nil
+	}, WithTimeout(1000*time.Millisecond))
+}
+
 func TestInvokeWithTimeout(t *testing.T) {
 	ctx := context.Background()
 	var ok bool
