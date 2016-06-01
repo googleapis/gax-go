@@ -12,6 +12,7 @@ func TestClientOptionsPieceByPiece(t *testing.T) {
 		"v0.1.0",
 		"https://example.com:443",
 		[]string{"https://example.com/auth/helloworld", "https://example.com/auth/otherthing"},
+		true,
 		map[string][]CallOption{"ListWorlds": []CallOption{WithTimeout(3 * time.Second)}},
 	}
 
@@ -21,6 +22,7 @@ func TestClientOptionsPieceByPiece(t *testing.T) {
 		WithAppVersion("v0.1.0"),
 		WithEndpoint("https://example.com:443"),
 		WithScopes("https://example.com/auth/helloworld", "https://example.com/auth/otherthing"),
+		WithInsecure(),
 		WithCallOptions(map[string][]CallOption{"ListWorlds": []CallOption{WithTimeout(3 * time.Second)}}),
 	}
 	clientOptions(opts).Resolve(settings)
