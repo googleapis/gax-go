@@ -18,6 +18,7 @@ type ClientSettings struct {
 	AppVersion  string
 	Endpoint    string
 	Scopes      []string
+	Insecure    bool
 	CallOptions map[string][]CallOption
 }
 
@@ -25,6 +26,7 @@ func (w ClientSettings) Resolve(s *ClientSettings) {
 	s.AppName = w.AppName
 	s.AppVersion = w.AppVersion
 	s.Endpoint = w.Endpoint
+	s.Insecure = w.Insecure
 	WithScopes(w.Scopes...).Resolve(s)
 	WithCallOptions(w.CallOptions).Resolve(s)
 }
@@ -68,6 +70,14 @@ func (w withScopes) Resolve(s *ClientSettings) {
 func WithScopes(scopes ...string) ClientOption {
 	return withScopes(scopes)
 }
+
+type withInsecure struct{}
+
+func (w withInsecure) Resolve(s *ClientSettings) {
+	s.Insecure = true
+}
+
+func WithInsecure() ClientOption { return withInsecure{} }
 
 type withCallOptions map[string][]CallOption
 
