@@ -1,5 +1,9 @@
 package gax
 
+import (
+	"google.golang.org/grpc"
+)
+
 type ClientOption interface {
 	Resolve(*ClientSettings)
 }
@@ -18,17 +22,17 @@ type ClientSettings struct {
 	AppVersion  string
 	Endpoint    string
 	Scopes      []string
-	Insecure    bool
 	CallOptions map[string][]CallOption
+	DialOptions []grpc.DialOption
 }
 
 func (w ClientSettings) Resolve(s *ClientSettings) {
 	s.AppName = w.AppName
 	s.AppVersion = w.AppVersion
 	s.Endpoint = w.Endpoint
-	s.Insecure = w.Insecure
 	WithScopes(w.Scopes...).Resolve(s)
 	WithCallOptions(w.CallOptions).Resolve(s)
+	WithDialOptions(w.DialOptions...).Resolve(s)
 }
 
 type withAppName string
@@ -71,14 +75,6 @@ func WithScopes(scopes ...string) ClientOption {
 	return withScopes(scopes)
 }
 
-type withInsecure struct{}
-
-func (w withInsecure) Resolve(s *ClientSettings) {
-	s.Insecure = true
-}
-
-func WithInsecure() ClientOption { return withInsecure{} }
-
 type withCallOptions map[string][]CallOption
 
 func (w withCallOptions) Resolve(s *ClientSettings) {
@@ -90,4 +86,14 @@ func (w withCallOptions) Resolve(s *ClientSettings) {
 
 func WithCallOptions(callOptions map[string][]CallOption) ClientOption {
 	return withCallOptions(callOptions)
+}
+
+type withDialOptions []grpc.DialOption
+
+func (w withDialOptions) Resolve(s *ClientSettings) {
+	s.DialOptions = append([]grpc.DialOption{}, w...)
+}
+
+func WithDialOptions(opts ...grpc.DialOption) ClientOption {
+	return withDialOptions(opts)
 }

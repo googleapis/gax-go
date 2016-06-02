@@ -14,18 +14,16 @@ func DialGRPC(ctx context.Context, opts ...ClientOption) (*grpc.ClientConn, erro
 	settings := &ClientSettings{}
 	clientOptions(opts).Resolve(settings)
 
-	var grpcOpts []grpc.DialOption
-	if settings.Insecure {
-		grpcOpts = []grpc.DialOption{grpc.WithInsecure()}
-	} else {
+	var dialOpts = settings.DialOptions
+	if len(dialOpts) == 0 {
 		tokenSource, err := google.DefaultTokenSource(ctx, settings.Scopes...)
 		if err != nil {
 			return nil, fmt.Errorf("google.DefaultTokenSource: %v", err)
 		}
-		grpcOpts = []grpc.DialOption{
+		dialOpts = []grpc.DialOption{
 			grpc.WithPerRPCCredentials(oauth.TokenSource{TokenSource: tokenSource}),
 			grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")),
 		}
 	}
-	return grpc.Dial(settings.Endpoint, grpcOpts...)
+	return grpc.Dial(settings.Endpoint, dialOpts...)
 }
