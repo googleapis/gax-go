@@ -24,6 +24,7 @@ type ClientSettings struct {
 	Scopes      []string
 	CallOptions map[string][]CallOption
 	DialOptions []grpc.DialOption
+	Connection  *grpc.ClientConn
 }
 
 func (w ClientSettings) Resolve(s *ClientSettings) {
@@ -33,6 +34,7 @@ func (w ClientSettings) Resolve(s *ClientSettings) {
 	WithScopes(w.Scopes...).Resolve(s)
 	WithCallOptions(w.CallOptions).Resolve(s)
 	WithDialOptions(w.DialOptions...).Resolve(s)
+	s.Connection = w.Connection
 }
 
 type withAppName string
@@ -96,4 +98,14 @@ func (w withDialOptions) Resolve(s *ClientSettings) {
 
 func WithDialOptions(opts ...grpc.DialOption) ClientOption {
 	return withDialOptions(opts)
+}
+
+type withConnection grpc.ClientConn
+
+func (w *withConnection) Resolve(s *ClientSettings) {
+	s.Connection = (*grpc.ClientConn)(w)
+}
+
+func WithConnection(conn *grpc.ClientConn) ClientOption {
+	return (*withConnection)(conn)
 }

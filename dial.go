@@ -14,6 +14,9 @@ func DialGRPC(ctx context.Context, opts ...ClientOption) (*grpc.ClientConn, erro
 	settings := &ClientSettings{}
 	clientOptions(opts).Resolve(settings)
 
+	if settings.Connection != nil {
+		return settings.Connection, nil
+	}
 	var dialOpts = settings.DialOptions
 	if len(dialOpts) == 0 {
 		tokenSource, err := google.DefaultTokenSource(ctx, settings.Scopes...)
