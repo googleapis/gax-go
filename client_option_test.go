@@ -9,6 +9,7 @@ import (
 )
 
 func TestClientOptionsPieceByPiece(t *testing.T) {
+	conn := &grpc.ClientConn{}
 	expected := &ClientSettings{
 		"myapi",
 		"v0.1.0",
@@ -16,6 +17,7 @@ func TestClientOptionsPieceByPiece(t *testing.T) {
 		[]string{"https://example.com/auth/helloworld", "https://example.com/auth/otherthing"},
 		map[string][]CallOption{"ListWorlds": []CallOption{WithTimeout(3 * time.Second)}},
 		[]grpc.DialOption{},
+		conn,
 	}
 
 	settings := &ClientSettings{}
@@ -26,6 +28,7 @@ func TestClientOptionsPieceByPiece(t *testing.T) {
 		WithScopes("https://example.com/auth/helloworld", "https://example.com/auth/otherthing"),
 		WithCallOptions(map[string][]CallOption{"ListWorlds": []CallOption{WithTimeout(3 * time.Second)}}),
 		WithDialOptions(), // Can't compare function signatures for equality.
+		WithConnection(conn),
 	}
 	clientOptions(opts).Resolve(settings)
 
