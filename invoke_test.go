@@ -57,8 +57,11 @@ func TestInvokeWithOKResponseWithTimeout(t *testing.T) {
 }
 
 func TestInvokeWithDeadlineAfterRetries(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	count := 0
+	errCode := codes.Unavailable
 
 	now := time.Now()
 	expectedTimeout := []time.Duration{
@@ -76,14 +79,21 @@ func TestInvokeWithDeadlineAfterRetries(t *testing.T) {
 		<-childCtx.Done()
 		// Workaround for `go vet`: https://github.com/grpc/grpc-go/issues/90
 		errf := grpc.Errorf
-		return errf(codes.DeadlineExceeded, "")
+		return errf(errCode, "")
 	}, testCallSettings...)
-	if count != 3 || err == nil {
-		t.Errorf("expected call to retry 3 times and return an error")
+	if count != 3 {
+		t.Errorf("expected call to retry 3 times")
+	}
+	if err, ok := err.(InvokeError); !ok {
+		t.Errorf("expect error to have type InvokeError: %v", err)
+	} else if cd := grpc.Code(err.GRPCError()); cd != errCode {
+		t.Errorf("wrong error, got %s, want %s", cd, errCode)
 	}
 }
 
 func TestInvokeWithOKResponseAfterRetries(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	count := 0
 

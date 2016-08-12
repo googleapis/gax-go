@@ -1,6 +1,7 @@
 package gax
 
 import (
+	"fmt"
 	"time"
 
 	"golang.org/x/net/context"
@@ -11,10 +12,13 @@ import (
 // A user defined call stub.
 type APICall func(context.Context) error
 
-// scaleDuration returns the product of a and mult.
-func scaleDuration(a time.Duration, mult float64) time.Duration {
-	ns := float64(a) * mult
-	return time.Duration(ns)
+// scaleDuration returns the duration in `mult` after `d`
+func scaleDuration(d time.Duration, mult MultipliableDuration) time.Duration {
+	nd := time.Duration(float64(d) * mult.Multiplier)
+	if nd > mult.Max {
+		nd = mult.Max
+	}
+	return nd
 }
 
 // ensureTimeout returns a context with the given timeout applied if there
@@ -33,31 +37,31 @@ func invokeWithRetry(ctx context.Context, stub APICall, callSettings CallSetting
 	backoffSettings := callSettings.RetrySettings.BackoffSettings
 	delay := backoffSettings.DelayTimeoutSettings.Initial
 	timeout := backoffSettings.RPCTimeoutSettings.Initial
+
 	for {
-		// If the deadline is exceeded...
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		timeoutCtx, _ := context.WithTimeout(ctx, backoffSettings.RPCTimeoutSettings.Max)
-		timeoutCtx, _ = context.WithTimeout(timeoutCtx, timeout)
+		timeoutCtx, _ := context.WithTimeout(ctx, timeout)
 		err := stub(timeoutCtx)
 		code := grpc.Code(err)
 		if code == codes.OK {
 			return nil
 		}
 		if !retrySettings.RetryCodes[code] {
-			return err
+			return invokeError{grpcErr: err}
 		}
-		delayCtx, _ := context.WithTimeout(ctx, backoffSettings.DelayTimeoutSettings.Max)
-		delayCtx, _ = context.WithTimeout(delayCtx, delay)
-		<-delayCtx.Done()
 
-		delay = scaleDuration(delay, backoffSettings.DelayTimeoutSettings.Multiplier)
-		timeout = scaleDuration(timeout, backoffSettings.RPCTimeoutSettings.Multiplier)
+		select {
+		case <-ctx.Done():
+			return invokeError{ctxErr: ctx.Err(), grpcErr: err}
+		case <-time.After(delay):
+		}
+
+		delay = scaleDuration(delay, backoffSettings.DelayTimeoutSettings)
+		timeout = scaleDuration(timeout, backoffSettings.RPCTimeoutSettings)
 	}
 }
 
 // Invoke calls stub with a child of context modified by the specified options.
+// If the returned error is not nil, it will be an InvokeError.
 func Invoke(ctx context.Context, stub APICall, opts ...CallOption) error {
 	settings := &CallSettings{}
 	callOptions(opts).Resolve(settings)
@@ -65,5 +69,28 @@ func Invoke(ctx context.Context, stub APICall, opts ...CallOption) error {
 	if len(settings.RetrySettings.RetryCodes) > 0 {
 		return invokeWithRetry(ctx, stub, *settings)
 	}
-	return stub(ctx)
+	if err := stub(ctx); err != nil {
+		return invokeError{grpcErr: err}
+	}
+	return nil
 }
+
+// InvokeError records the GRPC error from the last completed GRPC call.
+type InvokeError interface {
+	error
+	GRPCError() error
+}
+
+type invokeError struct {
+	// grpcErr is always non-nil
+	ctxErr, grpcErr error
+}
+
+func (e invokeError) Error() string {
+	if e.ctxErr != nil {
+		return fmt.Sprintf("%s (last retry error: %s)", e.ctxErr, e.grpcErr)
+	}
+	return e.grpcErr.Error()
+}
+
+func (e invokeError) GRPCError() error { return e.grpcErr }
