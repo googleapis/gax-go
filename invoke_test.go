@@ -19,6 +19,17 @@ var (
 	}
 )
 
+func TestScaleDuration(t *testing.T) {
+	mult := MultipliableDuration{Initial: time.Second, Max: time.Minute, Multiplier: 2}
+	d := mult.Initial
+	for i := 0; i < 100; i++ {
+		d = scaleDuration(d, mult)
+		if d > mult.Max {
+			t.Fatalf("duration %s exceeds maximum %s", d, mult.Max)
+		}
+	}
+}
+
 func TestInvokeWithContextTimeout(t *testing.T) {
 	ctx := context.Background()
 	deadline := time.Now().Add(42 * time.Second)

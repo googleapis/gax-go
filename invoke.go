@@ -12,7 +12,8 @@ import (
 // A user defined call stub.
 type APICall func(context.Context) error
 
-// scaleDuration returns the duration in `mult` after `d`
+// scaleDuration scales the duration d by mult.Multiplier,
+// making sure to not exceed mult.Max.
 func scaleDuration(d time.Duration, mult MultipliableDuration) time.Duration {
 	nd := time.Duration(float64(d) * mult.Multiplier)
 	if nd > mult.Max {
@@ -46,12 +47,12 @@ func invokeWithRetry(ctx context.Context, stub APICall, callSettings CallSetting
 			return nil
 		}
 		if !retrySettings.RetryCodes[code] {
-			return invokeError{grpcErr: err}
+			return InvokeError{grpcErr: err}
 		}
 
 		select {
 		case <-ctx.Done():
-			return invokeError{ctxErr: ctx.Err(), grpcErr: err}
+			return InvokeError{ctxErr: ctx.Err(), grpcErr: err}
 		case <-time.After(delay):
 		}
 
@@ -63,34 +64,28 @@ func invokeWithRetry(ctx context.Context, stub APICall, callSettings CallSetting
 // Invoke calls stub with a child of context modified by the specified options.
 // If the returned error is not nil, it will be an InvokeError.
 func Invoke(ctx context.Context, stub APICall, opts ...CallOption) error {
-	settings := &CallSettings{}
-	callOptions(opts).Resolve(settings)
+	var settings CallSettings
+	callOptions(opts).Resolve(&settings)
 	ctx = ensureTimeout(ctx, settings.Timeout)
 	if len(settings.RetrySettings.RetryCodes) > 0 {
-		return invokeWithRetry(ctx, stub, *settings)
+		return invokeWithRetry(ctx, stub, settings)
 	}
 	if err := stub(ctx); err != nil {
-		return invokeError{grpcErr: err}
+		return InvokeError{grpcErr: err}
 	}
 	return nil
 }
 
-// InvokeError records the GRPC error from the last completed GRPC call.
-type InvokeError interface {
-	error
-	GRPCError() error
-}
-
-type invokeError struct {
+type InvokeError struct {
 	// grpcErr is always non-nil
 	ctxErr, grpcErr error
 }
 
-func (e invokeError) Error() string {
+func (e InvokeError) Error() string {
 	if e.ctxErr != nil {
 		return fmt.Sprintf("%s (last retry error: %s)", e.ctxErr, e.grpcErr)
 	}
 	return e.grpcErr.Error()
 }
 
-func (e invokeError) GRPCError() error { return e.grpcErr }
+func (e InvokeError) GRPCError() error { return e.grpcErr }
