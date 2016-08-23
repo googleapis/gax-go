@@ -30,10 +30,11 @@
 package gax
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 var canceledContext context.Context
@@ -52,11 +53,6 @@ func (s *recordSleeper) Sleep(ctx context.Context, _ time.Duration) error {
 	return ctx.Err()
 }
 
-type boolRetryer bool
-
-func (r boolRetryer) Retry(error) (time.Duration, bool) { return 0, bool(r) }
-func (r boolRetryer) Reset()                            {}
-
 func TestInvokeSuccess(t *testing.T) {
 	apiCall := func(_ context.Context) error { return nil }
 	var sp recordSleeper
@@ -70,7 +66,7 @@ func TestInvokeSuccess(t *testing.T) {
 	}
 }
 
-func TestInvokeNoRetryer(t *testing.T) {
+func TestInvokeNoRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
 	apiCall := func(_ context.Context) error { return apiErr }
 	var sp recordSleeper
@@ -84,12 +80,27 @@ func TestInvokeNoRetryer(t *testing.T) {
 	}
 }
 
+func TestInvokeNilRetry(t *testing.T) {
+	apiErr := errors.New("foo error")
+	apiCall := func(_ context.Context) error { return apiErr }
+	var settings CallSettings
+	WithRetry(func() RetryFunc { return nil }).Resolve(&settings)
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, settings, &sp)
+
+	if err != apiErr {
+		t.Errorf("found error %s, want %s", err, apiErr)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since retry is not specified", int(sp))
+	}
+}
+
 func TestInvokeNeverRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
 	apiCall := func(_ context.Context) error { return apiErr }
-	settings := CallSettings{
-		Retryer: func() Retryer { return boolRetryer(false) },
-	}
+	var settings CallSettings
+	WithRetry(func() RetryFunc { return func(_ error) (time.Duration, bool) { return 0, false } }).Resolve(&settings)
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, settings, &sp)
 
@@ -113,9 +124,8 @@ func TestInvokeRetry(t *testing.T) {
 		}
 		return nil
 	}
-	settings := CallSettings{
-		Retryer: func() Retryer { return boolRetryer(true) },
-	}
+	var settings CallSettings
+	WithRetry(func() RetryFunc { return func(_ error) (time.Duration, bool) { return 0, true } }).Resolve(&settings)
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, settings, &sp)
 
@@ -130,9 +140,8 @@ func TestInvokeRetry(t *testing.T) {
 func TestInvokeRetryTimeout(t *testing.T) {
 	apiErr := errors.New("foo error")
 	apiCall := func(context.Context) error { return apiErr }
-	settings := CallSettings{
-		Retryer: func() Retryer { return boolRetryer(true) },
-	}
+	var settings CallSettings
+	WithRetry(func() RetryFunc { return func(_ error) (time.Duration, bool) { return 0, true } }).Resolve(&settings)
 	var sp recordSleeper
 
 	err := invoke(canceledContext, apiCall, settings, &sp)

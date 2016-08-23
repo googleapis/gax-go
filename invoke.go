@@ -30,8 +30,9 @@
 package gax
 
 import (
-	"context"
 	"time"
+
+	"golang.org/x/net/context"
 )
 
 // A user defined call stub.
@@ -52,19 +53,23 @@ type sleeper interface {
 }
 
 func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper) error {
-	var retryer Retryer
+	var retry RetryFunc
 	for {
 		err := call(ctx)
 		if err == nil {
 			return nil
 		}
-		if settings.Retryer == nil {
+		if settings.Retry == nil {
 			return err
 		}
-		if retryer == nil {
-			retryer = settings.Retryer()
+		if retry == nil {
+			if r := settings.Retry(); r != nil {
+				retry = r
+			} else {
+				return err
+			}
 		}
-		if d, ok := retryer.Retry(err); !ok {
+		if d, ok := retry(err); !ok {
 			return err
 		} else if err = sp.Sleep(ctx, d); err != nil {
 			return err

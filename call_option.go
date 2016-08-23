@@ -41,76 +41,57 @@ type CallOption interface {
 	Resolve(*CallSettings)
 }
 
-type retryerOption func() Retryer
+type retryFuncOption func() RetryFunc
 
-func (o retryerOption) Resolve(s *CallSettings) {
-	s.Retryer = o
+func (o retryFuncOption) Resolve(s *CallSettings) {
+	s.Retry = o
 }
 
-func WithBackoffRetryer(base, max time.Duration, mult float64, codes ...codes.Code) CallOption {
-	if len(codes) == 0 {
-		return retryerOption(nil)
-	}
-	return retryerOption(func() Retryer {
-		return &codeRetryer{
-			b: &exponentialBackoff{Base: base, Max: max, Mult: mult},
-			c: codes,
-		}
-	})
+func WithRetry(fn func() RetryFunc) CallOption {
+	return retryFuncOption(fn)
 }
 
-type CallSettings struct {
-	// Retryer returns a Retryer to be used to control retry logic of a method call.
-	// If retry is undesirable, simply set the function to nil.
-	// If the function is not nil, it must return non-nil Retryer.
-	Retryer func() Retryer
+type Backoff struct {
+	Initial time.Duration
+	Max     time.Duration
+	Mult    float64
+	Codes   []codes.Code
 }
 
-type Retryer interface {
-	// Retry decides whether a request should be retried and how long to wait before retrying
-	// if the previous attempt returned with err. err is never nil.
-	Retry(err error) (backoff time.Duration, ok bool)
-}
-
-type BackoffStrategy interface {
-	Pause() (time.Duration, bool)
-}
-
-type codeRetryer struct {
-	b BackoffStrategy
-	c []codes.Code
-}
-
-func (r *codeRetryer) Retry(err error) (time.Duration, bool) {
+func (r *Backoff) Retry(err error) (time.Duration, bool) {
 	c := grpc.Code(err)
-	for _, rc := range r.c {
-		if rc == c {
-			return r.b.Pause()
+	for _, rc := range r.Codes {
+		if c == rc {
+			return r.pause(), true
 		}
 	}
 	return 0, false
 }
 
-// exponentialBackoff implements exponential backoff.
-// It is similar to gensupport.ExponentialBackoff,
-// but allows arbitrary Mult
-// and retries forever within Max.
-type exponentialBackoff struct {
-	Base time.Duration
-	Max  time.Duration
-	Mult float64
-
-	d time.Duration
+func (r *Backoff) pause() time.Duration {
+	if r.Initial == 0 {
+		r.Initial = time.Second
+	}
+	if r.Max == 0 {
+		r.Max = 30 * time.Second
+	}
+	if r.Mult == 0 {
+		r.Mult = 2
+	}
+	d := time.Duration(rand.Int63n(int64(r.Initial)))
+	r.Initial = time.Duration(float64(r.Initial) * r.Mult)
+	if r.Initial > r.Max {
+		r.Initial = r.Max
+	}
+	return d
 }
 
-func (b *exponentialBackoff) Pause() (time.Duration, bool) {
-	if b.d < b.Base {
-		b.d = b.Base
-	}
-	d := b.d
-	b.d = time.Duration(float64(b.d) * b.Mult)
-	if b.d > b.Max {
-		b.d = b.Max
-	}
-	return time.Duration(rand.Int63n(int64(d))), true
+type CallSettings struct {
+	// Retry returns a RetryFunc to be used to control retry logic of a method call.
+	// If Retry is nil or the returned RetryFunc is nil, the call will not be retried.
+	Retry func() RetryFunc
 }
+
+// RetryFunc decides whether a request should be retried and how long to wait before retrying
+// if the previous attempt returned with err. err is never nil.
+type RetryFunc func(error) (time.Duration, bool)
