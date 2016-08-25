@@ -53,7 +53,7 @@ type sleeper interface {
 }
 
 func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper) error {
-	var retry RetryFunc
+	var retryer Retryer
 	for {
 		err := call(ctx)
 		if err == nil {
@@ -62,14 +62,14 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		if settings.Retry == nil {
 			return err
 		}
-		if retry == nil {
+		if retryer == nil {
 			if r := settings.Retry(); r != nil {
-				retry = r
+				retryer = r
 			} else {
 				return err
 			}
 		}
-		if d, ok := retry(err); !ok {
+		if d, ok := retryer.Retry(err); !ok {
 			return err
 		} else if err = sp.Sleep(ctx, d); err != nil {
 			return err

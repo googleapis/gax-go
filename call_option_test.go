@@ -37,6 +37,8 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+var _ Retryer = &Backoff{}
+
 func TestBackofDefault(t *testing.T) {
 	backoff := Backoff{}
 
@@ -53,7 +55,7 @@ func TestBackofDefault(t *testing.T) {
 }
 
 func TestBackoffExponential(t *testing.T) {
-	backoff := Backoff{Initial: 1, Max: 20, Mult: 2}
+	backoff := Backoff{Initial: 1, Max: 20, Multiplier: 2}
 	want := []time.Duration{1, 2, 4, 8, 16, 20, 20, 20, 20, 20}
 	for _, w := range want {
 		if d := backoff.pause(); d > w {
@@ -76,11 +78,9 @@ func TestBackoffCodes(t *testing.T) {
 		{[]codes.Code{codes.Unavailable}, true},
 	}
 	for _, tst := range tests {
-		b := Backoff{Initial: 1, Max: 2, Mult: 1.2, Codes: tst.c}
-		_, retry := b.Retry(apiErr)
-
-		if retry != tst.retry {
-			t.Errorf("retryable codes: %v, error code: %s, retry: %t, want %t", tst.c, grpc.Code(apiErr), retry, tst.retry)
+		b := Backoff{Codes: tst.c}
+		if _, retry := b.Retry(apiErr); retry != tst.retry {
+			t.Errorf("retriable codes: %v, error code: %s, retry: %t, want %t", tst.c, grpc.Code(apiErr), retry, tst.retry)
 		}
 	}
 }

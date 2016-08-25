@@ -53,6 +53,10 @@ func (s *recordSleeper) Sleep(ctx context.Context, _ time.Duration) error {
 	return ctx.Err()
 }
 
+type boolRetryer bool
+
+func (r boolRetryer) Retry(err error) (time.Duration, bool) { return 0, bool(r) }
+
 func TestInvokeSuccess(t *testing.T) {
 	apiCall := func(_ context.Context) error { return nil }
 	var sp recordSleeper
@@ -84,7 +88,7 @@ func TestInvokeNilRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
 	apiCall := func(_ context.Context) error { return apiErr }
 	var settings CallSettings
-	WithRetry(func() RetryFunc { return nil }).Resolve(&settings)
+	WithRetry(func() Retryer { return nil }).Resolve(&settings)
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, settings, &sp)
 
@@ -100,7 +104,7 @@ func TestInvokeNeverRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
 	apiCall := func(_ context.Context) error { return apiErr }
 	var settings CallSettings
-	WithRetry(func() RetryFunc { return func(_ error) (time.Duration, bool) { return 0, false } }).Resolve(&settings)
+	WithRetry(func() Retryer { return boolRetryer(false) }).Resolve(&settings)
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, settings, &sp)
 
@@ -125,7 +129,7 @@ func TestInvokeRetry(t *testing.T) {
 		return nil
 	}
 	var settings CallSettings
-	WithRetry(func() RetryFunc { return func(_ error) (time.Duration, bool) { return 0, true } }).Resolve(&settings)
+	WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, settings, &sp)
 
@@ -141,7 +145,7 @@ func TestInvokeRetryTimeout(t *testing.T) {
 	apiErr := errors.New("foo error")
 	apiCall := func(context.Context) error { return apiErr }
 	var settings CallSettings
-	WithRetry(func() RetryFunc { return func(_ error) (time.Duration, bool) { return 0, true } }).Resolve(&settings)
+	WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
 	var sp recordSleeper
 
 	err := invoke(canceledContext, apiCall, settings, &sp)

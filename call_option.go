@@ -37,27 +37,55 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// CallOption is an option used by Invoke
 type CallOption interface {
 	Resolve(*CallSettings)
 }
 
-type retryFuncOption func() RetryFunc
+// Retryer is used by Invoke to determine retry behavior.
+type Retryer interface {
+	// Retry reports whether a request should be retried and how long to pause before retrying
+	// if the previous attempt returned with err.
+	// Invoke never calls ShouldRetry with nil error.
+	Retry(err error) (pause time.Duration, shouldRetry bool)
+}
 
-func (o retryFuncOption) Resolve(s *CallSettings) {
+type retryerOption func() Retryer
+
+func (o retryerOption) Resolve(s *CallSettings) {
 	s.Retry = o
 }
 
-func WithRetry(fn func() RetryFunc) CallOption {
-	return retryFuncOption(fn)
+// WithRetry sets CallSettings.Retry to fn.
+func WithRetry(fn func() Retryer) CallOption {
+	return retryerOption(fn)
 }
 
+// Backoff implements Retryer, retrying on error codes in Codes,
+// and performing exponential backoffs between retries.
+//
+// A request is retried if and only if the error is a GRPC error
+// whose error code is stored in Codes.
+// The wait time between retries is a random value between 0 and the "retry envelope".
+// The envelope starts at Initial and increases by the factor of Multiplier every retry,
+// but is capped at Max.
 type Backoff struct {
+	// Initial is the initial value of the retry envelope, defaults to 1 second.
 	Initial time.Duration
-	Max     time.Duration
-	Mult    float64
-	Codes   []codes.Code
+
+	// Max is the maximum value of the retry envelope, defaults to 30 seconds.
+	Max time.Duration
+
+	// Multiplier is the factor by which the retry envelope increases.
+	// It should be greater than 1 and defaults to 2.
+	Multiplier float64
+
+	// Codes are the GRPC error codes that Backoff should retry.
+	Codes []codes.Code
 }
 
+// Retry reports whether a request should be retried and how long to pause before retrying
+// if the previous attempt returned with err.
 func (r *Backoff) Retry(err error) (time.Duration, bool) {
 	c := grpc.Code(err)
 	for _, rc := range r.Codes {
@@ -75,11 +103,11 @@ func (r *Backoff) pause() time.Duration {
 	if r.Max == 0 {
 		r.Max = 30 * time.Second
 	}
-	if r.Mult == 0 {
-		r.Mult = 2
+	if r.Multiplier == 0 {
+		r.Multiplier = 2
 	}
 	d := time.Duration(rand.Int63n(int64(r.Initial)))
-	r.Initial = time.Duration(float64(r.Initial) * r.Mult)
+	r.Initial = time.Duration(float64(r.Initial) * r.Multiplier)
 	if r.Initial > r.Max {
 		r.Initial = r.Max
 	}
@@ -87,11 +115,7 @@ func (r *Backoff) pause() time.Duration {
 }
 
 type CallSettings struct {
-	// Retry returns a RetryFunc to be used to control retry logic of a method call.
-	// If Retry is nil or the returned RetryFunc is nil, the call will not be retried.
-	Retry func() RetryFunc
+	// Retry returns a Retryer to be used to control retry logic of a method call.
+	// If Retry is nil or the returned Retryer is nil, the call will not be retried.
+	Retry func() Retryer
 }
-
-// RetryFunc decides whether a request should be retried and how long to wait before retrying
-// if the previous attempt returned with err. err is never nil.
-type RetryFunc func(error) (time.Duration, bool)
