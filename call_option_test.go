@@ -37,7 +37,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var _ Retryer = &Backoff{}
+var _ Retryer = &boRetryer{}
 
 func TestBackofDefault(t *testing.T) {
 	backoff := Backoff{}
@@ -48,7 +48,7 @@ func TestBackofDefault(t *testing.T) {
 	}
 
 	for _, w := range want {
-		if d := backoff.pause(); d > w {
+		if d := backoff.Pause(); d > w {
 			t.Errorf("Backoff duration should be at most %s, got %s", w, d)
 		}
 	}
@@ -58,13 +58,13 @@ func TestBackoffExponential(t *testing.T) {
 	backoff := Backoff{Initial: 1, Max: 20, Multiplier: 2}
 	want := []time.Duration{1, 2, 4, 8, 16, 20, 20, 20, 20, 20}
 	for _, w := range want {
-		if d := backoff.pause(); d > w {
+		if d := backoff.Pause(); d > w {
 			t.Errorf("Backoff duration should be at most %s, got %s", w, d)
 		}
 	}
 }
 
-func TestBackoffCodes(t *testing.T) {
+func TestOnCodes(t *testing.T) {
 	// Lint errors grpc.Errorf in 1.6. It mistakenly expects the first arg to Errorf to be a string.
 	errf := grpc.Errorf
 	apiErr := errf(codes.Unavailable, "")
@@ -78,7 +78,7 @@ func TestBackoffCodes(t *testing.T) {
 		{[]codes.Code{codes.Unavailable}, true},
 	}
 	for _, tst := range tests {
-		b := Backoff{Codes: tst.c}
+		b := OnCodes(tst.c, Backoff{})
 		if _, retry := b.Retry(apiErr); retry != tst.retry {
 			t.Errorf("retriable codes: %v, error code: %s, retry: %t, want %t", tst.c, grpc.Code(apiErr), retry, tst.retry)
 		}

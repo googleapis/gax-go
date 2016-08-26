@@ -61,11 +61,35 @@ func WithRetry(fn func() Retryer) CallOption {
 	return retryerOption(fn)
 }
 
-// Backoff implements Retryer, retrying on error codes in Codes,
-// and performing exponential backoffs between retries.
+// OnCodes returns a Retryer that retries if and only if
+// the previous attempt returns a GRPC error whose error code is stored in codes.
+// Pause times between retries are specified by bo.
 //
-// A request is retried if and only if the error is a GRPC error
-// whose error code is stored in Codes.
+// bo is only used for its parameters; each Retryer has its own copy.
+// codes must not be modified.
+func OnCodes(codes []codes.Code, bo Backoff) Retryer {
+	return &boRetryer{
+		Backoff: bo,
+		codes:   codes,
+	}
+}
+
+type boRetryer struct {
+	Backoff
+	codes []codes.Code
+}
+
+func (r *boRetryer) Retry(err error) (time.Duration, bool) {
+	c := grpc.Code(err)
+	for _, rc := range r.codes {
+		if c == rc {
+			return r.Pause(), true
+		}
+	}
+	return 0, false
+}
+
+// Backoff implements exponential backoff.
 // The wait time between retries is a random value between 0 and the "retry envelope".
 // The envelope starts at Initial and increases by the factor of Multiplier every retry,
 // but is capped at Max.
@@ -79,37 +103,22 @@ type Backoff struct {
 	// Multiplier is the factor by which the retry envelope increases.
 	// It should be greater than 1 and defaults to 2.
 	Multiplier float64
-
-	// Codes are the GRPC error codes that Backoff should retry.
-	Codes []codes.Code
 }
 
-// Retry reports whether a request should be retried and how long to pause before retrying
-// if the previous attempt returned with err.
-func (r *Backoff) Retry(err error) (time.Duration, bool) {
-	c := grpc.Code(err)
-	for _, rc := range r.Codes {
-		if c == rc {
-			return r.pause(), true
-		}
+func (bo *Backoff) Pause() time.Duration {
+	if bo.Initial == 0 {
+		bo.Initial = time.Second
 	}
-	return 0, false
-}
-
-func (r *Backoff) pause() time.Duration {
-	if r.Initial == 0 {
-		r.Initial = time.Second
+	if bo.Max == 0 {
+		bo.Max = 30 * time.Second
 	}
-	if r.Max == 0 {
-		r.Max = 30 * time.Second
+	if bo.Multiplier == 0 {
+		bo.Multiplier = 2
 	}
-	if r.Multiplier == 0 {
-		r.Multiplier = 2
-	}
-	d := time.Duration(rand.Int63n(int64(r.Initial)))
-	r.Initial = time.Duration(float64(r.Initial) * r.Multiplier)
-	if r.Initial > r.Max {
-		r.Initial = r.Max
+	d := time.Duration(rand.Int63n(int64(bo.Initial)))
+	bo.Initial = time.Duration(float64(bo.Initial) * bo.Multiplier)
+	if bo.Initial > bo.Max {
+		bo.Initial = bo.Max
 	}
 	return d
 }
