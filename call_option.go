@@ -69,21 +69,21 @@ func WithRetry(fn func() Retryer) CallOption {
 // codes must not be modified.
 func OnCodes(codes []codes.Code, bo Backoff) Retryer {
 	return &boRetryer{
-		Backoff: bo,
+		backoff: bo,
 		codes:   codes,
 	}
 }
 
 type boRetryer struct {
-	Backoff
-	codes []codes.Code
+	backoff Backoff
+	codes   []codes.Code
 }
 
 func (r *boRetryer) Retry(err error) (time.Duration, bool) {
 	c := grpc.Code(err)
 	for _, rc := range r.codes {
 		if c == rc {
-			return r.Pause(), true
+			return r.backoff.Pause(), true
 		}
 	}
 	return 0, false
