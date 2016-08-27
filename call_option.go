@@ -38,15 +38,19 @@ import (
 )
 
 // CallOption is an option used by Invoke
+// to control behaviors of RPC calls.
+// CallOption works by modifying relevant fields of CallSettings.
 type CallOption interface {
-	Resolve(*CallSettings)
+	// Resolve applies the option by modifying cs.
+	Resolve(cs *CallSettings)
 }
 
 // Retryer is used by Invoke to determine retry behavior.
 type Retryer interface {
-	// Retry reports whether a request should be retried and how long to pause before retrying
+	// Retry reports whether a request should be retried
+	// and how long to pause before retrying
 	// if the previous attempt returned with err.
-	// Invoke never calls ShouldRetry with nil error.
+	// Invoke never calls Retry with nil error.
 	Retry(err error) (pause time.Duration, shouldRetry bool)
 }
 
@@ -62,15 +66,14 @@ func WithRetry(fn func() Retryer) CallOption {
 }
 
 // OnCodes returns a Retryer that retries if and only if
-// the previous attempt returns a GRPC error whose error code is stored in codes.
+// the previous attempt returns a GRPC error whose error code is stored in cc.
 // Pause times between retries are specified by bo.
 //
 // bo is only used for its parameters; each Retryer has its own copy.
-// codes must not be modified.
-func OnCodes(codes []codes.Code, bo Backoff) Retryer {
+func OnCodes(cc []codes.Code, bo Backoff) Retryer {
 	return &boRetryer{
 		backoff: bo,
-		codes:   codes,
+		codes:   append([]codes.Code(nil), cc...),
 	}
 }
 
