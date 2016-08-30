@@ -106,11 +106,17 @@ type Backoff struct {
 	// Multiplier is the factor by which the retry envelope increases.
 	// It should be greater than 1 and defaults to 2.
 	Multiplier float64
+
+	// cur is the current retry envelope
+	cur time.Duration
 }
 
 func (bo *Backoff) Pause() time.Duration {
 	if bo.Initial == 0 {
 		bo.Initial = time.Second
+	}
+	if bo.cur == 0 {
+		bo.cur = bo.Initial
 	}
 	if bo.Max == 0 {
 		bo.Max = 30 * time.Second
@@ -118,10 +124,10 @@ func (bo *Backoff) Pause() time.Duration {
 	if bo.Multiplier == 0 {
 		bo.Multiplier = 2
 	}
-	d := time.Duration(rand.Int63n(int64(bo.Initial)))
-	bo.Initial = time.Duration(float64(bo.Initial) * bo.Multiplier)
-	if bo.Initial > bo.Max {
-		bo.Initial = bo.Max
+	d := time.Duration(rand.Int63n(int64(bo.cur)))
+	bo.cur = time.Duration(float64(bo.cur) * bo.Multiplier)
+	if bo.cur > bo.Max {
+		bo.cur = bo.Max
 	}
 	return d
 }

@@ -47,9 +47,11 @@ func TestBackofDefault(t *testing.T) {
 		want[i] = w * time.Second
 	}
 
-	for _, w := range want {
+	for i, w := range want {
 		if d := backoff.Pause(); d > w {
 			t.Errorf("Backoff duration should be at most %s, got %s", w, d)
+		} else if i < len(want)-1 && backoff.cur != want[i+1] {
+			t.Errorf("current envelop is %s, want %s", backoff.cur, want[i+1])
 		}
 	}
 }
