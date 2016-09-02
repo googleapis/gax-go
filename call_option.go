@@ -37,8 +37,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// CallOption is an option used by Invoke
-// to control behaviors of RPC calls.
+// CallOption is an option used by Invoke to control behaviors of RPC calls.
 // CallOption works by modifying relevant fields of CallSettings.
 type CallOption interface {
 	// Resolve applies the option by modifying cs.

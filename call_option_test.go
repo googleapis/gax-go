@@ -42,16 +42,16 @@ var _ Retryer = &boRetryer{}
 func TestBackofDefault(t *testing.T) {
 	backoff := Backoff{}
 
-	want := []time.Duration{1, 2, 4, 8, 16, 30, 30, 30, 30, 30}
-	for i, w := range want {
-		want[i] = w * time.Second
+	max := []time.Duration{1, 2, 4, 8, 16, 30, 30, 30, 30, 30}
+	for i, m := range max {
+		max[i] = m * time.Second
 	}
 
-	for i, w := range want {
+	for i, w := range max {
 		if d := backoff.Pause(); d > w {
 			t.Errorf("Backoff duration should be at most %s, got %s", w, d)
-		} else if i < len(want)-1 && backoff.cur != want[i+1] {
-			t.Errorf("current envelop is %s, want %s", backoff.cur, want[i+1])
+		} else if i < len(max)-1 && backoff.cur != max[i+1] {
+			t.Errorf("current envelope is %s, want %s", backoff.cur, max[i+1])
 		}
 	}
 }
