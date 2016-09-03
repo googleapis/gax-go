@@ -46,10 +46,8 @@ type CallOption interface {
 
 // Retryer is used by Invoke to determine retry behavior.
 type Retryer interface {
-	// Retry reports whether a request should be retried
-	// and how long to pause before retrying
-	// if the previous attempt returned with err.
-	// Invoke never calls Retry with nil error.
+	// Retry reports whether a request should be retriedand how long to pause before retrying
+	// if the previous attempt returned with err. Invoke never calls Retry with nil error.
 	Retry(err error) (pause time.Duration, shouldRetry bool)
 }
 
@@ -120,7 +118,7 @@ func (bo *Backoff) Pause() time.Duration {
 	if bo.Max == 0 {
 		bo.Max = 30 * time.Second
 	}
-	if bo.Multiplier == 0 {
+	if bo.Multiplier < 1 {
 		bo.Multiplier = 2
 	}
 	d := time.Duration(rand.Int63n(int64(bo.cur)))
