@@ -1,104 +1,173 @@
+// Copyright 2016, Google Inc.
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//     * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//     * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//     * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 package gax
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 )
 
-var (
-	testCallSettings = []CallOption{
-		WithRetryCodes([]codes.Code{codes.Unavailable, codes.DeadlineExceeded}),
-		// initial, max, multiplier
-		WithDelayTimeoutSettings(100*time.Millisecond, 300*time.Millisecond, 1.5),
-		WithRPCTimeoutSettings(50*time.Millisecond, 500*time.Millisecond, 3.0),
-		WithTimeout(1000 * time.Millisecond),
-	}
-)
+var canceledContext context.Context
 
-func TestInvokeWithContextTimeout(t *testing.T) {
-	ctx := context.Background()
-	deadline := time.Now().Add(42 * time.Second)
-	ctx, _ = context.WithDeadline(ctx, deadline)
-	Invoke(ctx, func(childCtx context.Context) error {
-		d, ok := childCtx.Deadline()
-		if !ok || d != deadline {
-			t.Errorf("expected call to have original timeout")
+func init() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	canceledContext = ctx
+}
+
+// recordSleeper is a test implementation of sleeper.
+type recordSleeper int
+
+func (s *recordSleeper) Sleep(ctx context.Context, _ time.Duration) error {
+	*s++
+	return ctx.Err()
+}
+
+type boolRetryer bool
+
+func (r boolRetryer) Retry(err error) (time.Duration, bool) { return 0, bool(r) }
+
+func TestInvokeSuccess(t *testing.T) {
+	apiCall := func(_ context.Context) error { return nil }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, &sp)
+
+	if err != nil {
+		t.Errorf("found error %s, want nil", err)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
+	}
+}
+
+func TestInvokeNoRetry(t *testing.T) {
+	apiErr := errors.New("foo error")
+	apiCall := func(_ context.Context) error { return apiErr }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, &sp)
+
+	if err != apiErr {
+		t.Errorf("found error %s, want %s", err, apiErr)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since retry is not specified", int(sp))
+	}
+}
+
+func TestInvokeNilRetry(t *testing.T) {
+	apiErr := errors.New("foo error")
+	apiCall := func(_ context.Context) error { return apiErr }
+	var settings CallSettings
+	WithRetry(func() Retryer { return nil }).Resolve(&settings)
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, settings, &sp)
+
+	if err != apiErr {
+		t.Errorf("found error %s, want %s", err, apiErr)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since retry is not specified", int(sp))
+	}
+}
+
+func TestInvokeNeverRetry(t *testing.T) {
+	apiErr := errors.New("foo error")
+	apiCall := func(_ context.Context) error { return apiErr }
+	var settings CallSettings
+	WithRetry(func() Retryer { return boolRetryer(false) }).Resolve(&settings)
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, settings, &sp)
+
+	if err != apiErr {
+		t.Errorf("found error %s, want %s", err, apiErr)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since retry is not specified", int(sp))
+	}
+}
+
+func TestInvokeRetry(t *testing.T) {
+	const target = 3
+
+	retryNum := 0
+	apiErr := errors.New("foo error")
+	apiCall := func(context.Context) error {
+		retryNum++
+		if retryNum < target {
+			return apiErr
 		}
 		return nil
-	}, WithTimeout(1000*time.Millisecond))
-}
+	}
+	var settings CallSettings
+	WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, settings, &sp)
 
-func TestInvokeWithTimeout(t *testing.T) {
-	ctx := context.Background()
-	var ok bool
-	Invoke(ctx, func(childCtx context.Context) error {
-		_, ok = childCtx.Deadline()
-		return nil
-	}, WithTimeout(1000*time.Millisecond))
-	if !ok {
-		t.Errorf("expected call to have an assigned timeout")
+	if err != nil {
+		t.Errorf("found error %s, want nil, call should have succeeded after %d tries", err, target)
+	}
+	if sp != target-1 {
+		t.Errorf("retried %d times, want %d", int(sp), int(target-1))
 	}
 }
 
-func TestInvokeWithOKResponseWithTimeout(t *testing.T) {
-	ctx := context.Background()
-	var resp int
-	err := Invoke(ctx, func(childCtx context.Context) error {
-		resp = 42
-		return nil
-	}, WithTimeout(1000*time.Millisecond))
-	if resp != 42 || err != nil {
-		t.Errorf("expected call to return nil and set resp to 42")
+func TestInvokeRetryTimeout(t *testing.T) {
+	apiErr := errors.New("foo error")
+	apiCall := func(context.Context) error { return apiErr }
+	var settings CallSettings
+	WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
+	var sp recordSleeper
+
+	err := invoke(canceledContext, apiCall, settings, &sp)
+
+	if err != context.Canceled {
+		t.Errorf("found error %s, want %s", err, context.Canceled)
 	}
 }
 
-func TestInvokeWithDeadlineAfterRetries(t *testing.T) {
-	ctx := context.Background()
-	count := 0
-
-	now := time.Now()
-	expectedTimeout := []time.Duration{
-		0,
-		150 * time.Millisecond,
-		450 * time.Millisecond,
+func TestTimeSleeper(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  context.Context
+		d    time.Duration
+		err  error
+	}{
+		{"background", context.Background(), 1, nil},
+		{"canceled", canceledContext, time.Hour, context.Canceled},
 	}
-
-	err := Invoke(ctx, func(childCtx context.Context) error {
-		t.Log("delta:", time.Now().Sub(now.Add(expectedTimeout[count])))
-		if !time.Now().After(now.Add(expectedTimeout[count])) {
-			t.Errorf("expected %s to pass before this call", expectedTimeout[count])
+	for _, tst := range tests {
+		if err := (timeSleeper{}).Sleep(tst.ctx, tst.d); err != tst.err {
+			t.Errorf("%s: got error %s, want %s", tst.name, err, tst.err)
 		}
-		count += 1
-		<-childCtx.Done()
-		// Workaround for `go vet`: https://github.com/grpc/grpc-go/issues/90
-		errf := grpc.Errorf
-		return errf(codes.DeadlineExceeded, "")
-	}, testCallSettings...)
-	if count != 3 || err == nil {
-		t.Errorf("expected call to retry 3 times and return an error")
-	}
-}
-
-func TestInvokeWithOKResponseAfterRetries(t *testing.T) {
-	ctx := context.Background()
-	count := 0
-
-	var resp int
-	err := Invoke(ctx, func(childCtx context.Context) error {
-		count += 1
-		if count == 3 {
-			resp = 42
-			return nil
-		}
-		<-childCtx.Done()
-		errf := grpc.Errorf
-		return errf(codes.DeadlineExceeded, "")
-	}, testCallSettings...)
-	if count != 3 || resp != 42 || err != nil {
-		t.Errorf("expected call to retry 3 times, return nil, and set resp to 42")
 	}
 }
