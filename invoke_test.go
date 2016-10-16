@@ -48,7 +48,7 @@ func init() {
 // recordSleeper is a test implementation of sleeper.
 type recordSleeper int
 
-func (s *recordSleeper) Sleep(ctx context.Context, _ time.Duration) error {
+func (s *recordSleeper) sleep(ctx context.Context, _ time.Duration) error {
 	*s++
 	return ctx.Err()
 }
@@ -60,7 +60,7 @@ func (r boolRetryer) Retry(err error) (time.Duration, bool) { return 0, bool(r) 
 func TestInvokeSuccess(t *testing.T) {
 	apiCall := func(_ context.Context) error { return nil }
 	var sp recordSleeper
-	err := invoke(context.Background(), apiCall, CallSettings{}, &sp)
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
 
 	if err != nil {
 		t.Errorf("found error %s, want nil", err)
@@ -74,7 +74,7 @@ func TestInvokeNoRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
 	apiCall := func(_ context.Context) error { return apiErr }
 	var sp recordSleeper
-	err := invoke(context.Background(), apiCall, CallSettings{}, &sp)
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
 
 	if err != apiErr {
 		t.Errorf("found error %s, want %s", err, apiErr)
@@ -90,7 +90,7 @@ func TestInvokeNilRetry(t *testing.T) {
 	var settings CallSettings
 	WithRetry(func() Retryer { return nil }).Resolve(&settings)
 	var sp recordSleeper
-	err := invoke(context.Background(), apiCall, settings, &sp)
+	err := invoke(context.Background(), apiCall, settings, sp.sleep)
 
 	if err != apiErr {
 		t.Errorf("found error %s, want %s", err, apiErr)
@@ -106,7 +106,7 @@ func TestInvokeNeverRetry(t *testing.T) {
 	var settings CallSettings
 	WithRetry(func() Retryer { return boolRetryer(false) }).Resolve(&settings)
 	var sp recordSleeper
-	err := invoke(context.Background(), apiCall, settings, &sp)
+	err := invoke(context.Background(), apiCall, settings, sp.sleep)
 
 	if err != apiErr {
 		t.Errorf("found error %s, want %s", err, apiErr)
@@ -131,7 +131,7 @@ func TestInvokeRetry(t *testing.T) {
 	var settings CallSettings
 	WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
 	var sp recordSleeper
-	err := invoke(context.Background(), apiCall, settings, &sp)
+	err := invoke(context.Background(), apiCall, settings, sp.sleep)
 
 	if err != nil {
 		t.Errorf("found error %s, want nil, call should have succeeded after %d tries", err, target)
@@ -148,26 +148,9 @@ func TestInvokeRetryTimeout(t *testing.T) {
 	WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
 	var sp recordSleeper
 
-	err := invoke(canceledContext, apiCall, settings, &sp)
+	err := invoke(canceledContext, apiCall, settings, sp.sleep)
 
 	if err != context.Canceled {
 		t.Errorf("found error %s, want %s", err, context.Canceled)
-	}
-}
-
-func TestTimeSleeper(t *testing.T) {
-	tests := []struct {
-		name string
-		ctx  context.Context
-		d    time.Duration
-		err  error
-	}{
-		{"background", context.Background(), 1, nil},
-		{"canceled", canceledContext, time.Hour, context.Canceled},
-	}
-	for _, tst := range tests {
-		if err := (timeSleeper{}).Sleep(tst.ctx, tst.d); err != tst.err {
-			t.Errorf("%s: got error %s, want %s", tst.name, err, tst.err)
-		}
 	}
 }
