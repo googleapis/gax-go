@@ -27,6 +27,11 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Package gax provides support for gRPC-based clients of Google APIs.
+// Features include RPC retry with exponential backoff, and support for
+// URL path templates.
+//
+// This package is experimental and subject to change without notice.
 package gax
 
 const Version = "0.1.0"
