@@ -32,11 +32,13 @@ package gax
 import (
 	"time"
 
+	"google.golang.org/grpc"
+
 	"golang.org/x/net/context"
 )
 
 // A user defined call stub.
-type APICall func(context.Context) error
+type APICall func(context.Context, ...grpc.CallOption) error
 
 // Invoke calls the given APICall,
 // performing retries as specified by opts, if any.
@@ -66,8 +68,9 @@ type sleeper func(ctx context.Context, d time.Duration) error
 // invoke implements Invoke, taking an additional sleeper argument for testing.
 func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper) error {
 	var retryer Retryer
+	grpcOpts := grpcCtxOpts(ctx)
 	for {
-		err := call(ctx)
+		err := call(ctx, grpcOpts...)
 		if err == nil {
 			return nil
 		}
@@ -87,4 +90,22 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 			return err
 		}
 	}
+}
+
+func grpcCtxOpts(ctx context.Context) []grpc.CallOption {
+	var opts []grpc.CallOption
+	if w, ok := ctx.Value(waitForReadyKey).(bool); ok {
+		opts = append(opts, grpc.FailFast(!w))
+	}
+	return opts
+}
+
+type ctxKey int
+
+const (
+	waitForReadyKey ctxKey = iota
+)
+
+func WaitForReady(ctx context.Context, w bool) context.Context {
+	return context.WithValue(ctx, waitForReadyKey, w)
 }
