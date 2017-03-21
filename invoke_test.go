@@ -58,7 +58,7 @@ type boolRetryer bool
 func (r boolRetryer) Retry(err error) (time.Duration, bool) { return 0, bool(r) }
 
 func TestInvokeSuccess(t *testing.T) {
-	apiCall := func(_ context.Context) error { return nil }
+	apiCall := func(context.Context, CallSettings) error { return nil }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
 
@@ -72,7 +72,7 @@ func TestInvokeSuccess(t *testing.T) {
 
 func TestInvokeNoRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
-	apiCall := func(_ context.Context) error { return apiErr }
+	apiCall := func(context.Context, CallSettings) error { return apiErr }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
 
@@ -86,7 +86,7 @@ func TestInvokeNoRetry(t *testing.T) {
 
 func TestInvokeNilRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
-	apiCall := func(_ context.Context) error { return apiErr }
+	apiCall := func(context.Context, CallSettings) error { return apiErr }
 	var settings CallSettings
 	WithRetry(func() Retryer { return nil }).Resolve(&settings)
 	var sp recordSleeper
@@ -102,7 +102,7 @@ func TestInvokeNilRetry(t *testing.T) {
 
 func TestInvokeNeverRetry(t *testing.T) {
 	apiErr := errors.New("foo error")
-	apiCall := func(_ context.Context) error { return apiErr }
+	apiCall := func(context.Context, CallSettings) error { return apiErr }
 	var settings CallSettings
 	WithRetry(func() Retryer { return boolRetryer(false) }).Resolve(&settings)
 	var sp recordSleeper
@@ -121,7 +121,7 @@ func TestInvokeRetry(t *testing.T) {
 
 	retryNum := 0
 	apiErr := errors.New("foo error")
-	apiCall := func(context.Context) error {
+	apiCall := func(context.Context, CallSettings) error {
 		retryNum++
 		if retryNum < target {
 			return apiErr
@@ -143,7 +143,7 @@ func TestInvokeRetry(t *testing.T) {
 
 func TestInvokeRetryTimeout(t *testing.T) {
 	apiErr := errors.New("foo error")
-	apiCall := func(context.Context) error { return apiErr }
+	apiCall := func(context.Context, CallSettings) error { return apiErr }
 	var settings CallSettings
 	WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
 	var sp recordSleeper
