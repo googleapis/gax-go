@@ -144,6 +144,6 @@ type CallSettings struct {
 	// If Retry is nil or the returned Retryer is nil, the call will not be retried.
 	Retry func() Retryer
 
-	// CallOption to be forwarded to GRPC.
+	// CallOptions to be forwarded to GRPC.
 	GRPC []grpc.CallOption
 }
