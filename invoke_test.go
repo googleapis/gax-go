@@ -30,11 +30,10 @@
 package gax
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
-
-	"golang.org/x/net/context"
 )
 
 var canceledContext context.Context
