@@ -30,40 +30,60 @@
 package gax
 
 import (
-	gaxv2 "github.com/googleapis/gax-go/v2"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
+	"context"
+	"time"
 )
 
-// CallOption is an option used by Invoke to control behaviors of RPC calls.
-// CallOption works by modifying relevant fields of CallSettings.
-type CallOption = gaxv2.CallOption
+// A user defined call stub.
+type APICall func(context.Context, CallSettings) error
 
-// Retryer is used by Invoke to determine retry behavior.
-type Retryer = gaxv2.Retryer
-
-// WithRetry sets CallSettings.Retry to fn.
-func WithRetry(fn func() Retryer) CallOption {
-	return gaxv2.WithRetry(fn)
+// Invoke calls the given APICall,
+// performing retries as specified by opts, if any.
+func Invoke(ctx context.Context, call APICall, opts ...CallOption) error {
+	var settings CallSettings
+	for _, opt := range opts {
+		opt.Resolve(&settings)
+	}
+	return invoke(ctx, call, settings, Sleep)
 }
 
-// OnCodes returns a Retryer that retries if and only if
-// the previous attempt returns a GRPC error whose error code is stored in cc.
-// Pause times between retries are specified by bo.
-//
-// bo is only used for its parameters; each Retryer has its own copy.
-func OnCodes(cc []codes.Code, bo Backoff) Retryer {
-	return gaxv2.OnCodes(cc, bo)
+// Sleep is similar to time.Sleep, but it can be interrupted by ctx.Done() closing.
+// If interrupted, Sleep returns ctx.Err().
+func Sleep(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	select {
+	case <-ctx.Done():
+		t.Stop()
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
-// Backoff implements exponential backoff.
-// The wait time between retries is a random value between 0 and the "retry envelope".
-// The envelope starts at Initial and increases by the factor of Multiplier every retry,
-// but is capped at Max.
-type Backoff = gaxv2.Backoff
+type sleeper func(ctx context.Context, d time.Duration) error
 
-func WithGRPCOptions(opt ...grpc.CallOption) CallOption {
-	return gaxv2.WithGRPCOptions(opt...)
+// invoke implements Invoke, taking an additional sleeper argument for testing.
+func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper) error {
+	var retryer Retryer
+	for {
+		err := call(ctx, settings)
+		if err == nil {
+			return nil
+		}
+		if settings.Retry == nil {
+			return err
+		}
+		if retryer == nil {
+			if r := settings.Retry(); r != nil {
+				retryer = r
+			} else {
+				return err
+			}
+		}
+		if d, ok := retryer.Retry(err); !ok {
+			return err
+		} else if err = sp(ctx, d); err != nil {
+			return err
+		}
+	}
 }
-
-type CallSettings = gaxv2.CallSettings

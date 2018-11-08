@@ -27,43 +27,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Package gax contains a set of modules which aid the development of APIs
+// for clients and servers based on gRPC and Google API conventions.
+//
+// Application code will rarely need to use this library directly.
+// However, code generated automatically from API definition files can use it
+// to simplify code generation and to provide more convenient and idiomatic API surfaces.
 package gax
 
-import (
-	gaxv2 "github.com/googleapis/gax-go/v2"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-)
-
-// CallOption is an option used by Invoke to control behaviors of RPC calls.
-// CallOption works by modifying relevant fields of CallSettings.
-type CallOption = gaxv2.CallOption
-
-// Retryer is used by Invoke to determine retry behavior.
-type Retryer = gaxv2.Retryer
-
-// WithRetry sets CallSettings.Retry to fn.
-func WithRetry(fn func() Retryer) CallOption {
-	return gaxv2.WithRetry(fn)
-}
-
-// OnCodes returns a Retryer that retries if and only if
-// the previous attempt returns a GRPC error whose error code is stored in cc.
-// Pause times between retries are specified by bo.
-//
-// bo is only used for its parameters; each Retryer has its own copy.
-func OnCodes(cc []codes.Code, bo Backoff) Retryer {
-	return gaxv2.OnCodes(cc, bo)
-}
-
-// Backoff implements exponential backoff.
-// The wait time between retries is a random value between 0 and the "retry envelope".
-// The envelope starts at Initial and increases by the factor of Multiplier every retry,
-// but is capped at Max.
-type Backoff = gaxv2.Backoff
-
-func WithGRPCOptions(opt ...grpc.CallOption) CallOption {
-	return gaxv2.WithGRPCOptions(opt...)
-}
-
-type CallSettings = gaxv2.CallSettings
+var Version = "1.0.0"
