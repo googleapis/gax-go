@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc.
+// Copyright 2018, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -31,30 +31,32 @@ package gax
 
 import (
 	"testing"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"time"
 )
 
-var _ Retryer = &boRetryer{}
+func TestBackofDefault(t *testing.T) {
+	backoff := Backoff{}
 
-func TestOnCodes(t *testing.T) {
-	// Lint errors grpc.Errorf in 1.6. It mistakenly expects the first arg to Errorf to be a string.
-	errf := status.Errorf
-	apiErr := errf(codes.Unavailable, "")
-	tests := []struct {
-		c     []codes.Code
-		retry bool
-	}{
-		{nil, false},
-		{[]codes.Code{codes.DeadlineExceeded}, false},
-		{[]codes.Code{codes.DeadlineExceeded, codes.Unavailable}, true},
-		{[]codes.Code{codes.Unavailable}, true},
+	max := []time.Duration{1, 2, 4, 8, 16, 30, 30, 30, 30, 30}
+	for i, m := range max {
+		max[i] = m * time.Second
 	}
-	for _, tst := range tests {
-		b := OnCodes(tst.c, Backoff{})
-		if _, retry := b.Retry(apiErr); retry != tst.retry {
-			t.Errorf("retriable codes: %v, error: %s, retry: %t, want %t", tst.c, apiErr, retry, tst.retry)
+
+	for i, w := range max {
+		if d := backoff.Pause(); d > w {
+			t.Errorf("Backoff duration should be at most %s, got %s", w, d)
+		} else if i < len(max)-1 && backoff.cur != max[i+1] {
+			t.Errorf("current envelope is %s, want %s", backoff.cur, max[i+1])
+		}
+	}
+}
+
+func TestBackoffExponential(t *testing.T) {
+	backoff := Backoff{Initial: 1, Max: 20, Multiplier: 2}
+	want := []time.Duration{1, 2, 4, 8, 16, 20, 20, 20, 20, 20}
+	for _, w := range want {
+		if d := backoff.Pause(); d > w {
+			t.Errorf("Backoff duration should be at most %s, got %s", w, d)
 		}
 	}
 }
