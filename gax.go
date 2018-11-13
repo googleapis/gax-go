@@ -35,4 +35,4 @@
 // to simplify code generation and to provide more convenient and idiomatic API surfaces.
 package gax
 
-const Version = "2.0.0"
+const Version = "1.0.1"
