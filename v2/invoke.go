@@ -34,7 +34,7 @@ import (
 	"time"
 )
 
-// A user defined call stub.
+// APICall is a user defined call stub.
 type APICall func(context.Context, CallSettings) error
 
 // Invoke calls the given APICall,

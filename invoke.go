@@ -36,7 +36,7 @@ import (
 	v2 "github.com/googleapis/gax-go/v2"
 )
 
-// A user defined call stub.
+// APICall is a user defined call stub.
 type APICall = v2.APICall
 
 // Invoke calls the given APICall,
