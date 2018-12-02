@@ -62,8 +62,10 @@ func OnCodes(cc []codes.Code, bo Backoff) Retryer {
 // but is capped at Max.
 type Backoff = v2.Backoff
 
+// WithGRPCOptions allows passing gRPC call options during client creation.
 func WithGRPCOptions(opt ...grpc.CallOption) CallOption {
 	return v2.WithGRPCOptions(opt...)
 }
 
+// CallSettings allow fine-grained control over how calls are made.
 type CallSettings = v2.CallSettings
