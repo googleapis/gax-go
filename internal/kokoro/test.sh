@@ -9,7 +9,7 @@ set -eo pipefail
 set -x
 
 # cd to project dir on Kokoro instance
-cd git/gax-go
+cd github/gax-go
 
 go version
 
