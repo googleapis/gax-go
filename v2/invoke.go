@@ -31,6 +31,7 @@ package gax
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -71,6 +72,15 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 			return nil
 		}
 		if settings.Retry == nil {
+			return err
+		}
+		// Never retry permanent certificate errors. (e.x. if ca-certificates
+		// are not installed). We should only make very few, targeted
+		// exceptions: many (other) status=Unavailable should be retried, such
+		// as if there's a network hiccup, or the internet goes out for a
+		// minute. This is also why here we are doing string parsing instead of
+		// simply making Unavailable a non-retried code elsewhere.
+		if strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
 			return err
 		}
 		if retryer == nil {
