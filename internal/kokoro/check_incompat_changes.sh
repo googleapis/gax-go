@@ -32,8 +32,8 @@ for dir in "" "/v2"; do
 
   # TODO(deklerk) there's probably a nicer way to do this that doesn't require
   # two invocations
-  if ! apidiff /tmp/pkg.master $pkg | (! read); then
-    apidiff /tmp/pkg.master $pkg
+  if ! apidiff -incompatible /tmp/pkg.master $pkg | (! read); then
+    apidiff -incompatible /tmp/pkg.master $pkg
     exit 1
   fi
 done
