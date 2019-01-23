@@ -10,10 +10,6 @@ if [[ `go version` != *"go1.11"* ]]; then
     exit 0
 fi
 
-try3() { eval "$*" || eval "$*" || eval "$*"; }
-
-try3 go get -u golang.org/x/exp/cmd/apidiff
-
 # We compare against master@HEAD. This is unfortunate in some cases: if you're
 # working on an out-of-date branch, and master gets some new feature (that has
 # nothing to do with your work on your branch), you'll get an error message.

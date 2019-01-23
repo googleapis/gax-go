@@ -24,10 +24,24 @@ git clone . $GAX_HOME
 cd $GAX_HOME
 
 try3() { eval "$*" || eval "$*" || eval "$*"; }
-try3 go get -v -t ./...
+
+if [[ `go version` == *"go1.11"* ]]; then
+  export GO111MODULE=on
+
+  # since v1 and v2 have different go.mod files, let's individually download
+  # and test
+
+  try3 go get .
+  go test -race -v . 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
+
+  pushd v2
+    try3 go get .
+    go test -race -v . 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
+  popd
+else
+  try3 go get -v -t ./...
+  go test -race -v ./... 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
+fi
 
 ./internal/kokoro/vet.sh
 ./internal/kokoro/check_incompat_changes.sh
-
-# Run tests and tee output to log file, to be pushed to GCS as artifact.
-go test -race -v ./... 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
