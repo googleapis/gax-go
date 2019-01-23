@@ -24,7 +24,13 @@ git clone . $GAX_HOME
 cd $GAX_HOME
 
 try3() { eval "$*" || eval "$*" || eval "$*"; }
-try3 go get -v -t ./...
+
+if [[ `go version` == *"go1.11"* ]]; then
+    export GO111MODULE=on
+    try3 go get .
+else
+    try3 go get -v -t ./...
+fi
 
 ./internal/kokoro/vet.sh
 ./internal/kokoro/check_incompat_changes.sh
