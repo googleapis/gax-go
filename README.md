@@ -10,7 +10,7 @@ conventions.
 To install the API extensions, use:
 
 ```
-go get -u github.com/googleapis/gax-go
+go get -u github.com/googleapis/gax-go/v2
 ```
 
 **Note:** Application code will rarely need to use this library directly,
