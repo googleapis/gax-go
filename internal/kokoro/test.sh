@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# TODO(deklerk) Add integration tests when it's secure to do so. b/64723143
-
 # Fail on any error
-set -eo pipefail
+set -eo
 
 # Display commands being run
 set -x
@@ -26,7 +24,7 @@ cd $GAX_HOME
 try3() { eval "$*" || eval "$*" || eval "$*"; }
 
 download_deps() {
-    if [[ `go version` == *"go1.11"* ]] || [[ `go version` == *"go1.12"* ]]; then
+    if [[ `go version` == *"go1.11"* ]] || [[ `go version` == *"go1.12"* ]] || [[ `go version` == *"go1.13"* ]]; then
         export GO111MODULE=on
         # All packages, including +build tools, are fetched.
         try3 go mod download
@@ -38,7 +36,6 @@ download_deps() {
 }
 
 download_deps
-./internal/kokoro/check_incompat_changes.sh
 ./internal/kokoro/vet.sh
 go test -race -v . 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
 
