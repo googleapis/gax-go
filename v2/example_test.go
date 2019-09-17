@@ -33,7 +33,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/googleapis/gax-go/v2"
+	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/grpc/codes"
 )
 
