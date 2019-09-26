@@ -30,5 +30,5 @@ try3 go mod download
 go test -race -v . 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
 
 cd v2
-download_deps
+try3 go mod download
 go test -race -v . 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
