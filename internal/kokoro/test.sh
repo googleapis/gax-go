@@ -15,6 +15,7 @@ go version
 export GOPATH="$HOME/go"
 export GAX_HOME=$GOPATH/src/github.com/googleapis/gax-go
 export PATH="$GOPATH/bin:$PATH"
+export GO111MODULE=on
 mkdir -p $GAX_HOME
 
 # Move code into $GOPATH and get dependencies
@@ -23,19 +24,8 @@ cd $GAX_HOME
 
 try3() { eval "$*" || eval "$*" || eval "$*"; }
 
-download_deps() {
-    if [[ `go version` == *"go1.11"* ]] || [[ `go version` == *"go1.12"* ]] || [[ `go version` == *"go1.13"* ]]; then
-        export GO111MODULE=on
-        # All packages, including +build tools, are fetched.
-        try3 go mod download
-    else
-        # Because we don't provide -tags tools, the +build tools
-        # dependencies aren't fetched.
-        try3 go get -v -t ./...
-    fi
-}
-
-download_deps
+# All packages, including +build tools, are fetched.
+try3 go mod download
 ./internal/kokoro/vet.sh
 go test -race -v . 2>&1 | tee $KOKORO_ARTIFACTS_DIR/$KOKORO_GERRIT_CHANGE_NUMBER.txt
 
