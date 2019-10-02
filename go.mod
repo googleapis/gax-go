@@ -1,6 +1,6 @@
 module github.com/googleapis/gax-go
 
-go 1.9
+go 1.11
 
 require (
 	github.com/golang/protobuf v1.3.1
