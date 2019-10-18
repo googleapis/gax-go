@@ -127,7 +127,7 @@ func ExampleBackoff() {
 	defer cancel()
 
 	resp, err := performHTTPCallWithRetry(ctxWithTimeout, func(ctx context.Context) (*http.Response, error) {
-		req, err := http.NewRequestWithContext(ctx, "some-method", "some-url.com", nil)
+		req, err := http.NewRequestWithContext(ctx, "some-method", "example.com", nil)
 		if err != nil {
 			return nil, err
 		}
