@@ -40,12 +40,10 @@ cat sponge_log.log | go-junit-report -set-exit-code > sponge_log.xml
 exit_code=$(($exit_code+$?))
 
 # Send logs to the Build Cop Bot for continuous builds.
-# TODO: uncomment when this works for the PR.
-# if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"continuous"* ]]; then
+if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"continuous"* ]]; then
   cd ..
   chmod +x $KOKORO_GFILE_DIR/linux_amd64/buildcop
-  $KOKORO_GFILE_DIR/linux_amd64/buildcop \
-    -repo=googleapis/gax-go # TODO delete after PR.
-# fi
+  $KOKORO_GFILE_DIR/linux_amd64/buildcop
+fi
 
 exit $exit_code
