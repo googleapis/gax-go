@@ -47,7 +47,7 @@ type CallOption interface {
 
 // Retryer is used by Invoke to determine retry behavior.
 type Retryer interface {
-	// Retry reports whether a request should be retriedand how long to pause before retrying
+	// Retry reports whether a request should be retried and how long to pause before retrying
 	// if the previous attempt returned with err. Invoke never calls Retry with nil error.
 	Retry(err error) (pause time.Duration, shouldRetry bool)
 }
