@@ -39,11 +39,11 @@ go test -race -v . 2>&1 | tee sponge_log.log
 cat sponge_log.log | go-junit-report -set-exit-code > sponge_log.xml
 exit_code=$(($exit_code+$?))
 
-# Send logs to the Build Cop Bot for continuous builds.
+# Send logs to Flaky Bot for continuous builds.
 if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"continuous"* ]]; then
   cd ..
-  chmod +x $KOKORO_GFILE_DIR/linux_amd64/buildcop
-  $KOKORO_GFILE_DIR/linux_amd64/buildcop
+  chmod +x $KOKORO_GFILE_DIR/linux_amd64/flakybot
+  $KOKORO_GFILE_DIR/linux_amd64/flakybot
 fi
 
 exit $exit_code
