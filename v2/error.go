@@ -65,6 +65,7 @@ type details struct {
 	Help                *errdetails.Help
 	DebugInfo           *errdetails.DebugInfo
 	PreconditionFailure *errdetails.PreconditionFailure
+	RetryInfo           *errdetails.RetryInfo
 }
 
 func (d *details) String() string {
@@ -107,7 +108,7 @@ func (a *APIError) Unwrap() error {
 
 // Error returns the error message.
 func (a *APIError) Error() string {
-	return a.details.String()
+	return a.status.Err().Error() + a.details.String()
 }
 
 func (a *APIError) Details() string {
@@ -127,11 +128,7 @@ func (a *APIError) GRPCStatus() *status.Status {
 // err is nil or it is not an API call status, nil and false are returned.
 func FromError(err error) (*APIError, bool) {
 	if st, ok := status.FromError(err); ok {
-		return &APIError{
-			err:     err,
-			status:  st,
-			details: d(st),
-		}, true
+		return FromStatus(st), true
 	}
 
 	return nil, false
