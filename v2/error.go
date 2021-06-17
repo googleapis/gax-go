@@ -36,12 +36,28 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// APIError is a wrapper type for API call error statuses. It extracts
+// well-known error detail information from the status and presents it to the
+// user in a Go idiomatic way.
+//
+// Example:
+//
+//   response, err := client.GetFooRpc()
+//   if ae, ok := errors.As(err, *APIError); ok {
+//	   // print ae.Details()
+//   }
+//
+// Generally, an APICall should return an APIError if possible.
 type APIError struct {
+	// I don't like this.
 	details *details
-	err     error
-	status  *status.Status
+
+	err    error
+	status *status.Status
+	// Could expand to HTTP errors as well...
 }
 
+// TODO: I don't like this
 type details struct {
 	BadRequest          *errdetails.BadRequest
 	ErrorInfo           *errdetails.ErrorInfo
@@ -54,6 +70,7 @@ type details struct {
 func (d *details) String() string {
 	s := ""
 
+	// I don't like this.
 	if d.ErrorInfo != nil {
 		s = fmt.Sprintf("%s: %+v", d.ErrorInfo.GetReason(), d.ErrorInfo.GetMetadata())
 	}
@@ -61,6 +78,7 @@ func (d *details) String() string {
 	return s
 }
 
+// I don't like this.
 func d(st *status.Status) *details {
 	dets := &details{}
 	for _, det := range st.Details() {
@@ -89,6 +107,10 @@ func (a *APIError) Unwrap() error {
 
 // Error returns the error message.
 func (a *APIError) Error() string {
+	return a.details.String()
+}
+
+func (a *APIError) Details() string {
 	return a.details.String()
 }
 
