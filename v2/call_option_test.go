@@ -91,6 +91,10 @@ func TestOnCodes(t *testing.T) {
 }
 
 func TestOnErrors(t *testing.T) {
+	// Use errors.Is if on go 1.13 or higher.
+	is := func(err, target error) bool {
+		return err == target
+	}
 	comp := func(err, target error) bool {
 		return strings.Contains(err.Error(), target.Error())
 	}
@@ -100,8 +104,8 @@ func TestOnErrors(t *testing.T) {
 		comp  func(err, target error) bool
 		retry bool
 	}{
-		{context.DeadlineExceeded, nil, errors.Is, false},
-		{context.DeadlineExceeded, []error{context.DeadlineExceeded}, errors.Is, true},
+		{context.DeadlineExceeded, nil, is, false},
+		{context.DeadlineExceeded, []error{context.DeadlineExceeded}, is, true},
 		{errors.New("This is a retryable error."), []error{errors.New("retryable")}, comp, true},
 	}
 	for _, tst := range tests {
@@ -113,13 +117,17 @@ func TestOnErrors(t *testing.T) {
 }
 
 func TestOnError(t *testing.T) {
+	// Use errors.Is if on go 1.13 or higher.
+	is := func(err, target error) bool {
+		return err == target
+	}
 	tests := []struct {
 		e           error
 		shouldRetry func(err error) bool
 		retry       bool
 	}{
 		{context.DeadlineExceeded, func(err error) bool { return false }, false},
-		{context.DeadlineExceeded, func(err error) bool { return errors.Is(err, context.DeadlineExceeded) }, true},
+		{context.DeadlineExceeded, func(err error) bool { return is(err, context.DeadlineExceeded) }, true},
 	}
 	for _, tst := range tests {
 		b := OnError(tst.shouldRetry, Backoff{})

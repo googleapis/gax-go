@@ -105,12 +105,17 @@ func ExampleOnErrors_sentinel() {
 	ctx := context.Background()
 	c := &fakeClient{}
 
+	// Use errors.Is if on go 1.13 or higher.
+	is := func(err, target error) bool {
+		return err == target
+	}
+
 	myErr := errors.New("This is a retriable error")
 	retryer := gax.OnErrors(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
 		Multiplier: 2,
-	}, errors.Is, myErr)
+	}, is, myErr)
 
 	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
 		for {
