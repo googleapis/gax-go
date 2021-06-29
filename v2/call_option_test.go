@@ -106,7 +106,7 @@ func TestOnErrors(t *testing.T) {
 	}{
 		{context.DeadlineExceeded, nil, is, false},
 		{context.DeadlineExceeded, []error{context.DeadlineExceeded}, is, true},
-		{errors.New("This is a retryable error."), []error{errors.New("retryable")}, comp, true},
+		{errors.New("this is a retryable error"), []error{errors.New("retryable")}, comp, true},
 	}
 	for _, tst := range tests {
 		b := OnErrors(Backoff{}, tst.comp, tst.errs...)

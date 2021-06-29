@@ -110,7 +110,7 @@ func ExampleOnErrors_sentinel() {
 		return err == target
 	}
 
-	myErr := errors.New("This is a retriable error")
+	myErr := errors.New("this is a retriable error")
 	retryer := gax.OnErrors(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
@@ -160,8 +160,8 @@ func ExampleOnErrors_onCodes() {
 		ts, _ := status.FromError(target)
 		return es.Code() == ts.Code()
 	}
-	unavailableErr := status.Error(codes.Unavailable, "Not available right now, try again.")
-	unknownErr := status.Error(codes.Unknown, "Unknown error, try again.")
+	unavailableErr := status.Error(codes.Unavailable, "not available right now, try again")
+	unknownErr := status.Error(codes.Unknown, "unknown error, try again")
 	retryer := gax.OnErrors(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
