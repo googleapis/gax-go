@@ -30,6 +30,9 @@
 package gax
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,6 +86,45 @@ func TestOnCodes(t *testing.T) {
 		b := OnCodes(tst.c, Backoff{})
 		if _, retry := b.Retry(apiErr); retry != tst.retry {
 			t.Errorf("retriable codes: %v, error: %s, retry: %t, want %t", tst.c, apiErr, retry, tst.retry)
+		}
+	}
+}
+
+func TestOnErrors(t *testing.T) {
+	comp := func(err, target error) bool {
+		return strings.Contains(err.Error(), target.Error())
+	}
+	tests := []struct {
+		e     error
+		errs  []error
+		comp  func(err, target error) bool
+		retry bool
+	}{
+		{context.DeadlineExceeded, nil, errors.Is, false},
+		{context.DeadlineExceeded, []error{context.DeadlineExceeded}, errors.Is, true},
+		{errors.New("This is a retryable error."), []error{errors.New("retryable")}, comp, true},
+	}
+	for _, tst := range tests {
+		b := OnErrors(tst.errs, tst.comp, Backoff{})
+		if _, retry := b.Retry(tst.e); retry != tst.retry {
+			t.Errorf("retriable errors: %v, error: %s, retry: %t, want %t", tst.errs, tst.e, retry, tst.retry)
+		}
+	}
+}
+
+func TestOnError(t *testing.T) {
+	tests := []struct {
+		e           error
+		shouldRetry func(err error) bool
+		retry       bool
+	}{
+		{context.DeadlineExceeded, func(err error) bool { return false }, false},
+		{context.DeadlineExceeded, func(err error) bool { return errors.Is(err, context.DeadlineExceeded) }, true},
+	}
+	for _, tst := range tests {
+		b := OnError(tst.shouldRetry, Backoff{})
+		if _, retry := b.Retry(tst.e); retry != tst.retry {
+			t.Errorf("retriable func: error: %s, retry: %t, want %t", tst.e, retry, tst.retry)
 		}
 	}
 }

@@ -73,22 +73,37 @@ func WithRetry(fn func() Retryer) CallOption {
 func OnErrors(errs []error, compare func(err, target error) bool, bo Backoff) Retryer {
 	return &errRetryer{
 		backoff: bo,
-		errs:    errs,
-		compare: compare,
+		shouldRetry: func(err error) bool {
+			for _, e := range errs {
+				if compare(err, e) {
+					return true
+				}
+			}
+			return false
+		},
+	}
+}
+
+// OnError returns a Retryer that retries if and only if the previous attempt
+// returns an error that satisfies shouldRetry.
+//
+// Pause times between retries are specified by bo. bo is only used for its
+// parameters; each Retryer has its own copy.
+func OnError(shouldRetry func(err error) bool, bo Backoff) Retryer {
+	return &errRetryer{
+		shouldRetry: shouldRetry,
+		backoff:     bo,
 	}
 }
 
 type errRetryer struct {
-	backoff Backoff
-	errs    []error
-	compare func(err, target error) bool
+	backoff     Backoff
+	shouldRetry func(err error) bool
 }
 
 func (r *errRetryer) Retry(err error) (time.Duration, bool) {
-	for _, e := range r.errs {
-		if r.compare(err, e) {
-			return r.backoff.Pause(), true
-		}
+	if r.shouldRetry(err) {
+		return r.backoff.Pause(), true
 	}
 
 	return 0, false
