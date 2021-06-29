@@ -106,11 +106,11 @@ func ExampleOnErrors_sentinel() {
 	c := &fakeClient{}
 
 	myErr := errors.New("This is a retriable error")
-	retryer := gax.OnErrors([]error{myErr}, errors.Is, gax.Backoff{
+	retryer := gax.OnErrors(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
 		Multiplier: 2,
-	})
+	}, errors.Is, myErr)
 
 	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
 		for {
@@ -155,11 +155,13 @@ func ExampleOnErrors_onCodes() {
 		ts, _ := status.FromError(target)
 		return es.Code() == ts.Code()
 	}
-	retryer := gax.OnErrors([]error{status.Error(codes.Unavailable, "Not available right now, try again.")}, compare, gax.Backoff{
+	unavailableErr := status.Error(codes.Unavailable, "Not available right now, try again.")
+	unknownErr := status.Error(codes.Unknown, "Unknown error, try again.")
+	retryer := gax.OnErrors(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
 		Multiplier: 2,
-	})
+	}, compare, unavailableErr, unknownErr)
 
 	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
 		for {

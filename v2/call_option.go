@@ -70,7 +70,7 @@ func WithRetry(fn func() Retryer) CallOption {
 //
 // Pause times between retries are specified by bo. bo is only used for its
 // parameters; each Retryer has its own copy.
-func OnErrors(errs []error, compare func(err, target error) bool, bo Backoff) Retryer {
+func OnErrors(bo Backoff, compare func(err, target error) bool, errs ...error) Retryer {
 	return &errRetryer{
 		backoff: bo,
 		shouldRetry: func(err error) bool {

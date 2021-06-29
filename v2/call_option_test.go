@@ -105,7 +105,7 @@ func TestOnErrors(t *testing.T) {
 		{errors.New("This is a retryable error."), []error{errors.New("retryable")}, comp, true},
 	}
 	for _, tst := range tests {
-		b := OnErrors(tst.errs, tst.comp, Backoff{})
+		b := OnErrors(Backoff{}, tst.comp, tst.errs...)
 		if _, retry := b.Retry(tst.e); retry != tst.retry {
 			t.Errorf("retriable errors: %v, error: %s, retry: %t, want %t", tst.errs, tst.e, retry, tst.retry)
 		}
