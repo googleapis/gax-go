@@ -33,11 +33,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Some result that the client might return.
@@ -94,14 +94,19 @@ func ExampleOnErrors_sentinel() {
 	_ = resp // TODO: use resp if err is nil
 }
 
-func ExampleOnErrors_custom() {
+func ExampleOnErrors_onCodes() {
 	ctx := context.Background()
 	c := &fakeClient{}
 
 	compare := func(err, target error) bool {
-		return strings.Contains(err.Error(), target.Error())
+		es, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+		ts, _ := status.FromError(target)
+		return es.Code() == ts.Code()
 	}
-	retryer := gax.OnErrors([]error{errors.New("error reading from server: EOF")}, compare, gax.Backoff{
+	retryer := gax.OnErrors([]error{status.Error(codes.Unavailable, "Not available right now, try again.")}, compare, gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
 		Multiplier: 2,
