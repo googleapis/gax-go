@@ -31,7 +31,9 @@ package gax_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	gax "github.com/googleapis/gax-go/v2"
@@ -48,6 +50,92 @@ type fakeClient struct{}
 func (c *fakeClient) PerformSomeRPC(ctx context.Context) (*fakeResponse, error) {
 	// An actual client would return something meaningful here.
 	return nil, nil
+}
+
+func ExampleOnErrors_sentinel() {
+	ctx := context.Background()
+	c := &fakeClient{}
+
+	myErr := errors.New("This is a retriable error")
+	retryer := gax.OnErrors([]error{myErr}, errors.Is, gax.Backoff{
+		Initial:    time.Second,
+		Max:        32 * time.Second,
+		Multiplier: 2,
+	})
+
+	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
+		for {
+			resp, err := c.PerformSomeRPC(ctx)
+			if err != nil {
+				if delay, shouldRetry := retryer.Retry(err); shouldRetry {
+					if err := gax.Sleep(ctx, delay); err != nil {
+						return nil, err
+					}
+					continue
+				}
+				return nil, err
+			}
+			return resp, err
+		}
+	}
+
+	// It's recommended to set deadlines on RPCs and around retrying. This is
+	// also usually preferred over setting some fixed number of retries: one
+	// advantage this has is that backoff settings can be changed independently
+	// of the deadline, whereas with a fixed number of retries the deadline
+	// would be a constantly-shifting goalpost.
+	ctxWithTimeout, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Minute))
+	defer cancel()
+
+	resp, err := performSomeRPCWithRetry(ctxWithTimeout)
+	if err != nil {
+		// TODO: handle err
+	}
+	_ = resp // TODO: use resp if err is nil
+}
+
+func ExampleOnErrors_custom() {
+	ctx := context.Background()
+	c := &fakeClient{}
+
+	compare := func(err, target error) bool {
+		return strings.Contains(err.Error(), target.Error())
+	}
+	retryer := gax.OnErrors([]error{errors.New("error reading from server: EOF")}, compare, gax.Backoff{
+		Initial:    time.Second,
+		Max:        32 * time.Second,
+		Multiplier: 2,
+	})
+
+	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
+		for {
+			resp, err := c.PerformSomeRPC(ctx)
+			if err != nil {
+				if delay, shouldRetry := retryer.Retry(err); shouldRetry {
+					if err := gax.Sleep(ctx, delay); err != nil {
+						return nil, err
+					}
+					continue
+				}
+				return nil, err
+			}
+			return resp, err
+		}
+	}
+
+	// It's recommended to set deadlines on RPCs and around retrying. This is
+	// also usually preferred over setting some fixed number of retries: one
+	// advantage this has is that backoff settings can be changed independently
+	// of the deadline, whereas with a fixed number of retries the deadline
+	// would be a constantly-shifting goalpost.
+	ctxWithTimeout, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Minute))
+	defer cancel()
+
+	resp, err := performSomeRPCWithRetry(ctxWithTimeout)
+	if err != nil {
+		// TODO: handle err
+	}
+	_ = resp // TODO: use resp if err is nil
 }
 
 func ExampleOnCodes() {

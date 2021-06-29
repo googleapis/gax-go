@@ -63,6 +63,37 @@ func WithRetry(fn func() Retryer) CallOption {
 	return retryerOption(fn)
 }
 
+// OnErrors returns a Retryer that retries if and only if the previous attempt
+// returns an error that matches one of the errors listed in errs when compared
+// with the given compare function. Supplying errors.Is (https://pkg.go.dev/errors#Is)
+// for compare is valid.
+//
+// Pause times between retries are specified by bo. bo is only used for its
+// parameters; each Retryer has its own copy.
+func OnErrors(errs []error, compare func(err, target error) bool, bo Backoff) Retryer {
+	return &errRetryer{
+		backoff: bo,
+		errs:    errs,
+		compare: compare,
+	}
+}
+
+type errRetryer struct {
+	backoff Backoff
+	errs    []error
+	compare func(err, target error) bool
+}
+
+func (r *errRetryer) Retry(err error) (time.Duration, bool) {
+	for _, e := range r.errs {
+		if r.compare(err, e) {
+			return r.backoff.Pause(), true
+		}
+	}
+
+	return 0, false
+}
+
 // OnCodes returns a Retryer that retries if and only if
 // the previous attempt returns a GRPC error whose error code is stored in cc.
 // Pause times between retries are specified by bo.
