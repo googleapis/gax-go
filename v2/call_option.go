@@ -89,7 +89,7 @@ func OnErrors(bo Backoff, compare func(err, target error) bool, errs ...error) R
 //
 // Pause times between retries are specified by bo. bo is only used for its
 // parameters; each Retryer has its own copy.
-func OnError(shouldRetry func(err error) bool, bo Backoff) Retryer {
+func OnError(bo Backoff, shouldRetry func(err error) bool) Retryer {
 	return &errRetryer{
 		shouldRetry: shouldRetry,
 		backoff:     bo,

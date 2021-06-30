@@ -64,11 +64,11 @@ func ExampleOnError() {
 
 		return st.Code() == codes.Unavailable || st.Code() == codes.Unknown
 	}
-	retryer := gax.OnError(shouldRetryUnavailableUnKnown, gax.Backoff{
+	retryer := gax.OnError(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
 		Multiplier: 2,
-	})
+	}, shouldRetryUnavailableUnKnown)
 
 	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
 		for {
