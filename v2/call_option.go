@@ -63,27 +63,6 @@ func WithRetry(fn func() Retryer) CallOption {
 	return retryerOption(fn)
 }
 
-// OnErrors returns a Retryer that retries if and only if the previous attempt
-// returns an error that matches one of the errors listed in errs when compared
-// with the given compare function. Supplying errors.Is (https://pkg.go.dev/errors#Is)
-// for compare is valid.
-//
-// Pause times between retries are specified by bo. bo is only used for its
-// parameters; each Retryer has its own copy.
-func OnErrors(bo Backoff, compare func(err, target error) bool, errs ...error) Retryer {
-	return &errRetryer{
-		backoff: bo,
-		shouldRetry: func(err error) bool {
-			for _, e := range errs {
-				if compare(err, e) {
-					return true
-				}
-			}
-			return false
-		},
-	}
-}
-
 // OnError returns a Retryer that retries if and only if the previous attempt
 // returns an error that satisfies shouldRetry.
 //
