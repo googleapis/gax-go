@@ -51,7 +51,7 @@ func (c *fakeClient) PerformSomeRPC(ctx context.Context) (*fakeResponse, error) 
 	return nil, nil
 }
 
-func ExampleOnPredicate() {
+func ExampleOnErrorFunc() {
 	ctx := context.Background()
 	c := &fakeClient{}
 
@@ -63,7 +63,7 @@ func ExampleOnPredicate() {
 
 		return st.Code() == codes.Unavailable || st.Code() == codes.Unknown
 	}
-	retryer := gax.OnPredicate(gax.Backoff{
+	retryer := gax.OnErrorFunc(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
 		Multiplier: 2,

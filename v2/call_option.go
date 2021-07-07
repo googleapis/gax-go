@@ -63,12 +63,12 @@ func WithRetry(fn func() Retryer) CallOption {
 	return retryerOption(fn)
 }
 
-// OnPredicate returns a Retryer that retries if and only if the previous attempt
+// OnErrorFunc returns a Retryer that retries if and only if the previous attempt
 // returns an error that satisfies shouldRetry.
 //
 // Pause times between retries are specified by bo. bo is only used for its
 // parameters; each Retryer has its own copy.
-func OnPredicate(bo Backoff, shouldRetry func(err error) bool) Retryer {
+func OnErrorFunc(bo Backoff, shouldRetry func(err error) bool) Retryer {
 	return &predicateRetryer{
 		shouldRetry: shouldRetry,
 		backoff:     bo,
