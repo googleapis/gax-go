@@ -69,18 +69,18 @@ func WithRetry(fn func() Retryer) CallOption {
 // Pause times between retries are specified by bo. bo is only used for its
 // parameters; each Retryer has its own copy.
 func OnErrorFunc(bo Backoff, shouldRetry func(err error) bool) Retryer {
-	return &predicateRetryer{
+	return &errorRetryer{
 		shouldRetry: shouldRetry,
 		backoff:     bo,
 	}
 }
 
-type predicateRetryer struct {
+type errorRetryer struct {
 	backoff     Backoff
 	shouldRetry func(err error) bool
 }
 
-func (r *predicateRetryer) Retry(err error) (time.Duration, bool) {
+func (r *errorRetryer) Retry(err error) (time.Duration, bool) {
 	if r.shouldRetry(err) {
 		return r.backoff.Pause(), true
 	}
