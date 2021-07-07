@@ -102,7 +102,7 @@ func TestOnError(t *testing.T) {
 		{context.DeadlineExceeded, func(err error) bool { return is(err, context.DeadlineExceeded) }, true},
 	}
 	for _, tst := range tests {
-		b := OnError(Backoff{}, tst.shouldRetry)
+		b := OnPredicate(Backoff{}, tst.shouldRetry)
 		if _, retry := b.Retry(tst.e); retry != tst.retry {
 			t.Errorf("retriable func: error: %s, retry: %t, want %t", tst.e, retry, tst.retry)
 		}
