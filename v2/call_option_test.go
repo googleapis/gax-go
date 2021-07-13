@@ -30,6 +30,7 @@
 package gax
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -83,6 +84,27 @@ func TestOnCodes(t *testing.T) {
 		b := OnCodes(tst.c, Backoff{})
 		if _, retry := b.Retry(apiErr); retry != tst.retry {
 			t.Errorf("retriable codes: %v, error: %s, retry: %t, want %t", tst.c, apiErr, retry, tst.retry)
+		}
+	}
+}
+
+func TestOnErrorFunc(t *testing.T) {
+	// Use errors.Is if on go 1.13 or higher.
+	is := func(err, target error) bool {
+		return err == target
+	}
+	tests := []struct {
+		e           error
+		shouldRetry func(err error) bool
+		retry       bool
+	}{
+		{context.DeadlineExceeded, func(err error) bool { return false }, false},
+		{context.DeadlineExceeded, func(err error) bool { return is(err, context.DeadlineExceeded) }, true},
+	}
+	for _, tst := range tests {
+		b := OnErrorFunc(Backoff{}, tst.shouldRetry)
+		if _, retry := b.Retry(tst.e); retry != tst.retry {
+			t.Errorf("retriable func: error: %s, retry: %t, want %t", tst.e, retry, tst.retry)
 		}
 	}
 }

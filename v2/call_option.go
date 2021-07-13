@@ -63,6 +63,31 @@ func WithRetry(fn func() Retryer) CallOption {
 	return retryerOption(fn)
 }
 
+// OnErrorFunc returns a Retryer that retries if and only if the previous attempt
+// returns an error that satisfies shouldRetry.
+//
+// Pause times between retries are specified by bo. bo is only used for its
+// parameters; each Retryer has its own copy.
+func OnErrorFunc(bo Backoff, shouldRetry func(err error) bool) Retryer {
+	return &errorRetryer{
+		shouldRetry: shouldRetry,
+		backoff:     bo,
+	}
+}
+
+type errorRetryer struct {
+	backoff     Backoff
+	shouldRetry func(err error) bool
+}
+
+func (r *errorRetryer) Retry(err error) (time.Duration, bool) {
+	if r.shouldRetry(err) {
+		return r.backoff.Pause(), true
+	}
+
+	return 0, false
+}
+
 // OnCodes returns a Retryer that retries if and only if
 // the previous attempt returns a GRPC error whose error code is stored in cc.
 // Pause times between retries are specified by bo.
