@@ -34,6 +34,10 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var canceledContext context.Context
@@ -67,6 +71,47 @@ func TestInvokeSuccess(t *testing.T) {
 	if sp != 0 {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
 	}
+}
+func TestInvokeAPIError(t *testing.T) {
+	br := &errdetails.BadRequest{}
+	br_violation := &errdetails.BadRequest_FieldViolation{
+		Field:       "field",
+		Description: "desc",
+	}
+	br.FieldViolations = append(br.FieldViolations, br_violation)
+	br_stat, _ := status.New(codes.InvalidArgument, "bad request").WithDetails(br)
+	br_err := br_stat.Err()
+	br_msg := ErrDetails{}
+	br_msg.BadRequest = br
+	_ = APIError{
+		err:     br_err,
+		status:  br_stat,
+		details: br_msg,
+	}
+	apierr, _ := FromError(br_err)
+	apiCall := func(context.Context, CallSettings) error { return br_err }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
+	if err != apierr {
+		t.Errorf("found error %s, want %s", err, apierr)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
+	}
+}
+
+func TestInvokeNonAPIError(t *testing.T) {
+	nonAPIerr := context.DeadlineExceeded
+	apiCall := func(context.Context, CallSettings) error { return nonAPIerr }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
+	if err != nonAPIerr {
+		t.Errorf("found error %s, want %s", err, nonAPIerr)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
+	}
+
 }
 
 func TestInvokeNoRetry(t *testing.T) {
