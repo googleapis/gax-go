@@ -72,41 +72,46 @@ func TestInvokeSuccess(t *testing.T) {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
 	}
 }
-func TestInvokeAPIError(t *testing.T) {
-	br := &errdetails.BadRequest{}
-	br_violation := &errdetails.BadRequest_FieldViolation{
-		Field:       "field",
-		Description: "desc",
-	}
-	br.FieldViolations = append(br.FieldViolations, br_violation)
-	br_stat, _ := status.New(codes.InvalidArgument, "bad request").WithDetails(br)
-	br_err := br_stat.Err()
-	br_msg := ErrDetails{}
-	br_msg.BadRequest = br
-	_ = APIError{
-		err:     br_err,
-		status:  br_stat,
-		details: br_msg,
-	}
-	apierr, _ := FromError(br_err)
-	apiCall := func(context.Context, CallSettings) error { return br_err }
+
+func TestInvokeCertificateError(t *testing.T) {
+	stat := status.New(codes.Unavailable, "x509: certificate signed by unknown authority")
+	apiErr := stat.Err()
+	apiCall := func(context.Context, CallSettings) error { return apiErr }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
-	if err != apierr {
-		t.Errorf("found error %s, want %s", err, apierr)
+	if err.Error() != apiErr.Error() {
+		t.Errorf("found error %s, want %s", err, stat.Err())
+	}
+}
+
+func TestInvokeAPIError(t *testing.T) {
+	qf := &errdetails.QuotaFailure{
+		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
+	}
+	stat, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
+	apiErr := &APIError{
+		err:     stat.Err(),
+		status:  stat,
+		details: ErrDetails{QuotaFailure: qf},
+	}
+	apiCall := func(context.Context, CallSettings) error { return stat.Err() }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
+	if err.Error() != apiErr.Error() {
+		t.Errorf("found error %s, want %s", err, apiErr)
 	}
 	if sp != 0 {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
 	}
 }
 
-func TestInvokeNonAPIError(t *testing.T) {
-	nonAPIerr := context.DeadlineExceeded
-	apiCall := func(context.Context, CallSettings) error { return nonAPIerr }
+func TestInvokeCtxError(t *testing.T) {
+	ctxErr := context.DeadlineExceeded
+	apiCall := func(context.Context, CallSettings) error { return ctxErr }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
-	if err != nonAPIerr {
-		t.Errorf("found error %s, want %s", err, nonAPIerr)
+	if err != ctxErr {
+		t.Errorf("found error %s, want %s", err, ctxErr)
 	}
 	if sp != 0 {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))

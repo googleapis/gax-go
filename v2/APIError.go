@@ -59,12 +59,10 @@ func FromError(err error) (*APIError, bool) {
 		return nil, false
 	}
 	msg := ErrDetails{}
-	//default value of false
-	api := true
 	//convert err to status
 	st, ok := status.FromError(err)
+	//append each index in status details to appropriate field in msg
 	if ok {
-		//append each index in status details to appropriate field in msg
 		for _, d := range st.Details() {
 			switch d := d.(type) {
 			case *errdetails.BadRequest:
@@ -75,6 +73,8 @@ func FromError(err error) (*APIError, bool) {
 				msg.QuotaFailure = d
 			case *errdetails.RetryInfo:
 				msg.RetryInfo = d
+			case *errdetails.Help:
+				msg.Help = d
 			case *errdetails.ResourceInfo:
 				msg.ResourceInfo = d
 			case *errdetails.RequestInfo:
@@ -83,22 +83,15 @@ func FromError(err error) (*APIError, bool) {
 				msg.DebugInfo = d
 			case *errdetails.LocalizedMessage:
 				msg.LocalizedMesage = d
+			default:
+				msg.Unknown = append(msg.Unknown, d)
 			}
 		}
-	} else {
-		msg.Unknown = append(msg.Unknown, err.Error())
-		api = false
-	}
-	if !api {
 		return &APIError{
 			details: msg,
 			err:     err,
 			status:  st,
-		}, false
+		}, true
 	}
-	return &APIError{
-		details: msg,
-		err:     err,
-		status:  st,
-	}, true
+	return nil, false
 }

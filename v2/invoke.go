@@ -71,12 +71,6 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		if err == nil {
 			return nil
 		}
-		if apierr, ok := FromError(err); ok {
-			err = apierr
-		}
-		if settings.Retry == nil {
-			return err
-		}
 		// Never retry permanent certificate errors. (e.x. if ca-certificates
 		// are not installed). We should only make very few, targeted
 		// exceptions: many (other) status=Unavailable should be retried, such
@@ -84,6 +78,12 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		// minute. This is also why here we are doing string parsing instead of
 		// simply making Unavailable a non-retried code elsewhere.
 		if strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
+			return err
+		}
+		if apierr, ok := FromError(err); ok {
+			return apierr
+		}
+		if settings.Retry == nil {
 			return err
 		}
 		if retryer == nil {
