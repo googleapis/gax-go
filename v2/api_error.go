@@ -30,17 +30,14 @@ type APIError struct {
 	details ErrDetails
 }
 
-// Present the details to the user in as type ErrDetails
 func (a *APIError) Details() ErrDetails {
 	return a.details
 }
 
-// Implement the error Unwrap API
 func (a *APIError) Unwrap() error {
 	return a.err
 }
 
-// Implement the error interface(cleaned up version of Details())
 func (a *APIError) Error() string {
 
 	strr, _ := json.Marshal(a.details)
@@ -48,20 +45,16 @@ func (a *APIError) Error() string {
 
 }
 
-// Implement the GRPCStatus() method
 func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
 
-// Implement extracting Status from error
 func FromError(err error) (*APIError, bool) {
 	if err == nil {
 		return nil, false
 	}
 	msg := ErrDetails{}
-	//convert err to status
 	st, ok := status.FromError(err)
-	//append each index in status details to appropriate field in msg
 	if ok {
 		for _, d := range st.Details() {
 			switch d := d.(type) {
