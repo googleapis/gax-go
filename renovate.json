@@ -1,5 +1,17 @@
 {
-  "extends": [
-    "config:base"
-  ]
+    "extends": [
+        "config:base",
+        "schedule:weekly"
+    ],
+    "semanticCommits": false,
+    "postUpdateOptions": [
+        "gomodTidy"
+    ],
+    "commitMessagePrefix": "chore(all): ",
+    "commitMessageAction": "update",
+    "force": {
+        "constraints": {
+          "go": "1.16"
+        }
+      }
 }
