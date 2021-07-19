@@ -2,7 +2,7 @@ package gax
 
 import (
 	"context"
-	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -18,14 +18,14 @@ func TestDetails(t *testing.T) {
 	qf := &errdetails.QuotaFailure{
 		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
 	}
-	stat, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
+	st, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
 	apierr := &APIError{
-		err:     stat.Err(),
-		status:  stat,
+		err:     st.Err(),
+		status:  st,
 		details: ErrDetails{QuotaFailure: qf},
 	}
 	if diff := cmp.Diff(apierr.details, apierr.Details(), cmp.Comparer(proto.Equal)); diff != "" {
-		t.Errorf("Expected(+) but got(-):\n%s", diff)
+		t.Errorf("Expected(+), Actual(-):\n%s", diff)
 	}
 }
 
@@ -33,16 +33,17 @@ func TestError(t *testing.T) {
 	pf := &errdetails.PreconditionFailure{
 		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar"}},
 	}
-	stat, _ := status.New(codes.FailedPrecondition, "System's state is not suitable for operation execution").WithDetails(pf)
+	st, _ := status.New(codes.FailedPrecondition, "System's state is not suitable for operation execution").WithDetails(pf)
 	apierr := &APIError{
-		err:     stat.Err(),
-		status:  stat,
+		err:     st.Err(),
+		status:  st,
 		details: ErrDetails{PreconditionFailure: pf},
 	}
-	strRep, _ := json.Marshal(apierr.details)
-	expected := apierr.err.Error() + "\n" + "Here are the details: " + "\n" + string(strRep)
-	if expected != apierr.Error() {
-		t.Errorf("Expected: %s but got: %s", expected, apierr.Error())
+	if !strings.Contains(apierr.Error(), apierr.err.Error()) {
+		t.Errorf("Original error message not included!")
+	}
+	if !strings.Contains(apierr.Error(), pf.String()) {
+		t.Errorf("Status message not included!")
 	}
 }
 
@@ -50,10 +51,10 @@ func TestGRPCStatus(t *testing.T) {
 	qf := &errdetails.QuotaFailure{
 		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
 	}
-	stat, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
+	st, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
 	apierr := &APIError{
-		err:     stat.Err(),
-		status:  stat,
+		err:     st.Err(),
+		status:  st,
 		details: ErrDetails{QuotaFailure: qf},
 	}
 	if apierr.status != apierr.GRPCStatus() {

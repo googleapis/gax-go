@@ -2,26 +2,24 @@ package gax
 
 // code snippet credit to @ndietz
 import (
-	"encoding/json"
-
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
-//hold the google/rpc/error_details.proto messages.
+//Hold the google/rpc/error_details.proto messages.
 type ErrDetails struct {
-	BadRequest          *errdetails.BadRequest          `json:",omitempty"`
-	PreconditionFailure *errdetails.PreconditionFailure `json:",omitempty"`
-	QuotaFailure        *errdetails.QuotaFailure        `json:",omitempty"`
-	RetryInfo           *errdetails.RetryInfo           `json:",omitempty"`
-	ResourceInfo        *errdetails.ResourceInfo        `json:",omitempty"`
-	RequestInfo         *errdetails.RequestInfo         `json:",omitempty"`
-	DebugInfo           *errdetails.DebugInfo           `json:",omitempty"`
-	Help                *errdetails.Help                `json:",omitempty"`
-	LocalizedMesage     *errdetails.LocalizedMessage    `json:",omitempty"`
+	BadRequest          *errdetails.BadRequest
+	PreconditionFailure *errdetails.PreconditionFailure
+	QuotaFailure        *errdetails.QuotaFailure
+	RetryInfo           *errdetails.RetryInfo
+	ResourceInfo        *errdetails.ResourceInfo
+	RequestInfo         *errdetails.RequestInfo
+	DebugInfo           *errdetails.DebugInfo
+	Help                *errdetails.Help
+	LocalizedMesage     *errdetails.LocalizedMessage
 
-	//store unidentifiable error details
-	Unknown []interface{} `json:",omitempty"`
+	Unknown []interface{}
 }
 
 type APIError struct {
@@ -40,9 +38,9 @@ func (a *APIError) Unwrap() error {
 
 func (a *APIError) Error() string {
 
-	strr, _ := json.Marshal(a.details)
-	return a.err.Error() + "\n" + "Here are the details: " + "\n" + string(strr)
+	s, _ := protojson.Marshal(a.details.BadRequest)
 
+	return string(s)
 }
 
 func (a *APIError) GRPCStatus() *status.Status {
@@ -55,36 +53,37 @@ func FromError(err error) (*APIError, bool) {
 	}
 	msg := ErrDetails{}
 	st, ok := status.FromError(err)
-	if ok {
-		for _, d := range st.Details() {
-			switch d := d.(type) {
-			case *errdetails.BadRequest:
-				msg.BadRequest = d
-			case *errdetails.PreconditionFailure:
-				msg.PreconditionFailure = d
-			case *errdetails.QuotaFailure:
-				msg.QuotaFailure = d
-			case *errdetails.RetryInfo:
-				msg.RetryInfo = d
-			case *errdetails.Help:
-				msg.Help = d
-			case *errdetails.ResourceInfo:
-				msg.ResourceInfo = d
-			case *errdetails.RequestInfo:
-				msg.RequestInfo = d
-			case *errdetails.DebugInfo:
-				msg.DebugInfo = d
-			case *errdetails.LocalizedMessage:
-				msg.LocalizedMesage = d
-			default:
-				msg.Unknown = append(msg.Unknown, d)
-			}
-		}
-		return &APIError{
-			details: msg,
-			err:     err,
-			status:  st,
-		}, true
+	if !ok {
+		return nil, false
 	}
-	return nil, false
+	for _, d := range st.Details() {
+		switch d := d.(type) {
+		case *errdetails.BadRequest:
+			msg.BadRequest = d
+		case *errdetails.PreconditionFailure:
+			msg.PreconditionFailure = d
+		case *errdetails.QuotaFailure:
+			msg.QuotaFailure = d
+		case *errdetails.RetryInfo:
+			msg.RetryInfo = d
+		case *errdetails.Help:
+			msg.Help = d
+		case *errdetails.ResourceInfo:
+			msg.ResourceInfo = d
+		case *errdetails.RequestInfo:
+			msg.RequestInfo = d
+		case *errdetails.DebugInfo:
+			msg.DebugInfo = d
+		case *errdetails.LocalizedMessage:
+			msg.LocalizedMesage = d
+		default:
+			msg.Unknown = append(msg.Unknown, d)
+		}
+	}
+	return &APIError{
+		details: msg,
+		err:     err,
+		status:  st,
+	}, true
+
 }

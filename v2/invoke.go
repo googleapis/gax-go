@@ -81,7 +81,7 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 			return err
 		}
 		if apierr, ok := FromError(err); ok {
-			return apierr
+			err = apierr
 		}
 		if settings.Retry == nil {
 			return err
