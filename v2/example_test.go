@@ -31,13 +31,13 @@ package gax_test
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
-
-const someRPCTimeout = 5 * time.Minute
 
 // Some result that the client might return.
 type fakeResponse struct{}
@@ -49,6 +49,55 @@ type fakeClient struct{}
 func (c *fakeClient) PerformSomeRPC(ctx context.Context) (*fakeResponse, error) {
 	// An actual client would return something meaningful here.
 	return nil, nil
+}
+
+func ExampleOnErrorFunc() {
+	ctx := context.Background()
+	c := &fakeClient{}
+
+	shouldRetryUnavailableUnKnown := func(err error) bool {
+		st, ok := status.FromError(err)
+		if !ok {
+			return false
+		}
+
+		return st.Code() == codes.Unavailable || st.Code() == codes.Unknown
+	}
+	retryer := gax.OnErrorFunc(gax.Backoff{
+		Initial:    time.Second,
+		Max:        32 * time.Second,
+		Multiplier: 2,
+	}, shouldRetryUnavailableUnKnown)
+
+	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
+		for {
+			resp, err := c.PerformSomeRPC(ctx)
+			if err != nil {
+				if delay, shouldRetry := retryer.Retry(err); shouldRetry {
+					if err := gax.Sleep(ctx, delay); err != nil {
+						return nil, err
+					}
+					continue
+				}
+				return nil, err
+			}
+			return resp, err
+		}
+	}
+
+	// It's recommended to set deadlines on RPCs and around retrying. This is
+	// also usually preferred over setting some fixed number of retries: one
+	// advantage this has is that backoff settings can be changed independently
+	// of the deadline, whereas with a fixed number of retries the deadline
+	// would be a constantly-shifting goalpost.
+	ctxWithTimeout, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Minute))
+	defer cancel()
+
+	resp, err := performSomeRPCWithRetry(ctxWithTimeout)
+	if err != nil {
+		// TODO: handle err
+	}
+	_ = resp // TODO: use resp if err is nil
 }
 
 func ExampleOnCodes() {
@@ -83,10 +132,58 @@ func ExampleOnCodes() {
 	// advantage this has is that backoff settings can be changed independently
 	// of the deadline, whereas with a fixed number of retries the deadline
 	// would be a constantly-shifting goalpost.
-	ctxWithTimeout, cancel := context.WithDeadline(ctx, time.Now().Add(someRPCTimeout))
+	ctxWithTimeout, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Minute))
 	defer cancel()
 
 	resp, err := performSomeRPCWithRetry(ctxWithTimeout)
+	if err != nil {
+		// TODO: handle err
+	}
+	_ = resp // TODO: use resp if err is nil
+}
+
+func ExampleBackoff() {
+	ctx := context.Background()
+
+	bo := gax.Backoff{
+		Initial:    time.Second,
+		Max:        time.Minute, // Maximum amount of time between retries.
+		Multiplier: 2,
+	}
+
+	performHTTPCallWithRetry := func(ctx context.Context, doHTTPCall func(ctx context.Context) (*http.Response, error)) (*http.Response, error) {
+		for {
+			resp, err := doHTTPCall(ctx)
+			if err != nil {
+				// Retry 503 UNAVAILABLE.
+				if resp.StatusCode == http.StatusServiceUnavailable {
+					if err := gax.Sleep(ctx, bo.Pause()); err != nil {
+						return nil, err
+					}
+					continue
+				}
+				return nil, err
+			}
+			return resp, err
+		}
+	}
+
+	// It's recommended to set deadlines on HTTP calls and around retrying. This
+	// is also usually preferred over setting some fixed number of retries: one
+	// advantage this has is that backoff settings can be changed independently
+	// of the deadline, whereas with a fixed number of retries the deadline
+	// would be a constantly-shifting goalpost.
+	ctxWithTimeout, cancel := context.WithDeadline(ctx, time.Now().Add(5*time.Minute))
+	defer cancel()
+
+	resp, err := performHTTPCallWithRetry(ctxWithTimeout, func(ctx context.Context) (*http.Response, error) {
+		req, err := http.NewRequest("some-method", "example.com", nil)
+		if err != nil {
+			return nil, err
+		}
+		req = req.WithContext(ctx)
+		return http.DefaultClient.Do(req)
+	})
 	if err != nil {
 		// TODO: handle err
 	}
