@@ -2,6 +2,7 @@ package gax
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -18,7 +19,7 @@ func TestDetails(t *testing.T) {
 	qf := &errdetails.QuotaFailure{
 		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
 	}
-	st, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
+	st, _ := status.New(codes.ResourceExhausted, "qf").WithDetails(qf)
 	apierr := &APIError{
 		err:     st.Err(),
 		status:  st,
@@ -31,18 +32,15 @@ func TestDetails(t *testing.T) {
 
 func TestError(t *testing.T) {
 	pf := &errdetails.PreconditionFailure{
-		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar"}},
+		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar", Description: "test"}},
 	}
-	st, _ := status.New(codes.FailedPrecondition, "System's state is not suitable for operation execution").WithDetails(pf)
+	st, _ := status.New(codes.FailedPrecondition, "pf").WithDetails(pf)
 	apierr := &APIError{
 		err:     st.Err(),
 		status:  st,
 		details: ErrDetails{PreconditionFailure: pf},
 	}
-	if !strings.Contains(apierr.Error(), apierr.err.Error()) {
-		t.Errorf("Original error message not included!")
-	}
-	if !strings.Contains(apierr.Error(), pf.String()) {
+	if !strings.Contains(apierr.Error(), "Foo") {
 		t.Errorf("Status message not included!")
 	}
 }
@@ -62,21 +60,24 @@ func TestGRPCStatus(t *testing.T) {
 	}
 }
 
-func TestFromError(t *testing.T) {
-	type test struct {
-		name string
-		got  *APIError
-		want *APIError
+func TestNonAPIFromError(t *testing.T) {
+	if err, _ := FromError(nil); err != nil {
+		t.Errorf("Expected nil but got: %v", err)
 	}
-	err, _ := FromError(nil)
-	if err != nil {
-		t.Errorf("Expected nil but got: %s", err)
+	if c, _ := FromError(context.DeadlineExceeded); c != nil {
+		t.Errorf("Expected nil but got: %v", c)
 	}
+}
 
-	ctxErr, _ := FromError(context.DeadlineExceeded)
-	if ctxErr != nil {
-		t.Errorf("Expected %s: but got %s:", context.DeadlineExceeded, ctxErr)
+func TestAPIFromError(t *testing.T) {
+	m := make(map[string]string)
+	m["type"] = "ErrorInfo"
+	ei := &errdetails.ErrorInfo{
+		Reason:   "Foo",
+		Domain:   "Bar",
+		Metadata: m,
 	}
+	eS, _ := status.New(codes.Unauthenticated, "ei").WithDetails(ei)
 
 	br := &errdetails.BadRequest{
 		FieldViolations: []*errdetails.BadRequest_FieldViolation{{
@@ -84,128 +85,84 @@ func TestFromError(t *testing.T) {
 			Description: "Bar",
 		}},
 	}
-	brStat, _ := status.New(codes.InvalidArgument, "bad request").WithDetails(br)
-	brExpected := &APIError{
-		err:    brStat.Err(),
-		status: brStat,
-		details: ErrDetails{
-			BadRequest: br},
-	}
-	brActual, _ := FromError(brStat.Err())
+	bS, _ := status.New(codes.InvalidArgument, "br").WithDetails(br)
 
 	qf := &errdetails.QuotaFailure{
 		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
 	}
-	qfStat, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
-	qfExpected := &APIError{
-		err:     qfStat.Err(),
-		status:  qfStat,
-		details: ErrDetails{QuotaFailure: qf},
-	}
-	qfActual, _ := FromError(qfStat.Err())
+	qS, _ := status.New(codes.ResourceExhausted, "qf").WithDetails(qf, br)
 
 	pf := &errdetails.PreconditionFailure{
-		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar"}},
+		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar", Description: "desc"}},
 	}
-	pfStat, _ := status.New(codes.FailedPrecondition, "System's state is not suitable for operation execution").WithDetails(pf)
-	pfExpected := &APIError{
-		err:     pfStat.Err(),
-		status:  pfStat,
-		details: ErrDetails{PreconditionFailure: pf},
-	}
-	pfActual, _ := FromError(pfStat.Err())
+	pS, _ := status.New(codes.FailedPrecondition, "pf").WithDetails(pf)
 
 	ri := &errdetails.RetryInfo{
-		RetryDelay: &durationpb.Duration{Seconds: 10},
+		RetryDelay: &durationpb.Duration{Seconds: 10, Nanos: 10},
 	}
-	riStat, _ := status.New(codes.Unavailable, "foo").WithDetails(ri)
-	riExpected := &APIError{
-		err:     riStat.Err(),
-		status:  riStat,
-		details: ErrDetails{RetryInfo: ri},
-	}
-	riActual, _ := FromError(riStat.Err())
+	riS, _ := status.New(codes.Unavailable, "foo").WithDetails(ri)
 
-	res := &errdetails.ResourceInfo{
+	rs := &errdetails.ResourceInfo{
 		ResourceType: "Foo",
 		ResourceName: "Bar",
 		Owner:        "Client",
 		Description:  "Directory not Found",
 	}
-	resStat, _ := status.New(codes.NotFound, "Missing directory").WithDetails(res)
-	resExpected := &APIError{
-		err:     resStat.Err(),
-		status:  resStat,
-		details: ErrDetails{ResourceInfo: res},
-	}
-	resActual, _ := FromError(resStat.Err())
+	rS, _ := status.New(codes.NotFound, "rs").WithDetails(rs)
 
-	req := &errdetails.RequestInfo{
+	rq := &errdetails.RequestInfo{
 		RequestId:   "Foo",
 		ServingData: "Bar",
 	}
-	reqStat, _ := status.New(codes.Canceled, "Request cancelled by client").WithDetails(req)
-	reqExpected := &APIError{
-		err:     reqStat.Err(),
-		status:  reqStat,
-		details: ErrDetails{RequestInfo: req},
-	}
-	reqActual, _ := FromError(reqStat.Err())
+	rqS, _ := status.New(codes.Canceled, "Request cancelled by client").WithDetails(rq)
 
 	deb := &errdetails.DebugInfo{
 		StackEntries: []string{"Foo", "Bar"},
-		Detail:       "Stack Details",
+		Detail:       "Stack",
 	}
-	debStat, _ := status.New(codes.DataLoss, "Here is the debug info").WithDetails(deb)
-	debExpected := &APIError{
-		err:     debStat.Err(),
-		status:  debStat,
-		details: ErrDetails{DebugInfo: deb},
-	}
-	debActual, _ := FromError(debStat.Err())
+	dS, _ := status.New(codes.DataLoss, "Here is the debug info").WithDetails(deb)
 
 	hp := &errdetails.Help{
 		Links: []*errdetails.Help_Link{{Description: "Foo", Url: "Bar"}},
 	}
-	hpStat, _ := status.New(codes.Unimplemented, "Help Info").WithDetails(hp)
-	hpExpected := &APIError{
-		err:     hpStat.Err(),
-		status:  hpStat,
-		details: ErrDetails{Help: hp},
-	}
-	hpActual, _ := FromError(hpStat.Err())
+	hS, _ := status.New(codes.Unimplemented, "Help Info").WithDetails(hp)
+
 	lo := &errdetails.LocalizedMessage{
 		Locale:  "Foo",
 		Message: "Bar",
 	}
-	loStat, _ := status.New(codes.Unknown, "Localized Message").WithDetails(lo)
-	loExpected := &APIError{
-		err:     loStat.Err(),
-		status:  loStat,
-		details: ErrDetails{LocalizedMesage: lo},
-	}
-	loActual, _ := FromError(loStat.Err())
+	lS, _ := status.New(codes.Unknown, "Localized Message").WithDetails(lo)
 
-	tests := []test{
-		{name: "BadRequest", want: brExpected, got: brActual},
-		{name: "QuotaFailure", want: qfExpected, got: qfActual},
-		{name: "PreconditionFailure", want: pfExpected, got: pfActual},
-		{name: "RetryInfo", want: riExpected, got: riActual},
-		{name: "ResourceInfo", want: resExpected, got: resActual},
-		{name: "RequestInfo", want: reqExpected, got: reqActual},
-		{name: "DebugInfo", want: debExpected, got: debActual},
-		{name: "Help", want: hpExpected, got: hpActual},
-		{name: "LocalizedMessage", want: loExpected, got: loActual},
+	tests := []struct {
+		apierr *APIError
+		b      bool
+	}{
+		{&APIError{err: eS.Err(), status: eS, details: ErrDetails{ErrorInfo: ei}}, true},
+		{&APIError{err: bS.Err(), status: bS, details: ErrDetails{BadRequest: br}}, true},
+		{&APIError{err: qS.Err(), status: qS, details: ErrDetails{QuotaFailure: qf, BadRequest: br}}, true},
+		{&APIError{err: pS.Err(), status: pS, details: ErrDetails{PreconditionFailure: pf}}, true},
+		{&APIError{err: riS.Err(), status: riS, details: ErrDetails{RetryInfo: ri}}, true},
+		{&APIError{err: rS.Err(), status: rS, details: ErrDetails{ResourceInfo: rs}}, true},
+		{&APIError{err: rqS.Err(), status: rqS, details: ErrDetails{RequestInfo: rq}}, true},
+		{&APIError{err: dS.Err(), status: dS, details: ErrDetails{DebugInfo: deb}}, true},
+		{&APIError{err: hS.Err(), status: hS, details: ErrDetails{Help: hp}}, true},
+		{&APIError{err: lS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, true},
 	}
 	for _, tc := range tests {
-		if diff := cmp.Diff(tc.got.details, tc.want.details, cmp.Comparer(proto.Equal)); diff != "" {
+		actual, apiB := FromError(tc.apierr.err)
+		fmt.Println(actual)
+		if tc.b != apiB {
+			t.Errorf("Expected: %v but got: %v", tc.b, apiB)
+		}
+		if diff := cmp.Diff(tc.apierr.details, actual.details, cmp.Comparer(proto.Equal)); diff != "" {
 			t.Errorf("Actual(-), Expected(+): \n%s", diff)
 		}
-		if diff := cmp.Diff(tc.got.status, tc.want.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
+		if diff := cmp.Diff(tc.apierr.status, actual.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
 			t.Errorf("Actual(-), Expected(+): \n%s", diff)
 		}
-		if diff := cmp.Diff(tc.got.err, tc.want.err, cmpopts.EquateErrors()); diff != "" {
+		if diff := cmp.Diff(tc.apierr.err, actual.err, cmpopts.EquateErrors()); diff != "" {
 			t.Errorf("Actual(-), Expected(+): \n%s", diff)
 		}
+
 	}
 }
