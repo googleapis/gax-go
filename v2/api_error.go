@@ -23,6 +23,7 @@ type ErrDetails struct {
 	Help                *errdetails.Help
 	LocalizedMessage    *errdetails.LocalizedMessage
 
+	//Unknown stores unidentifiable error details
 	Unknown []interface{}
 }
 
@@ -102,8 +103,8 @@ func (a *APIError) Error() string {
 
 	}
 	if a.details.RetryInfo != nil {
-		d.WriteString("api error: name = RequestInfo" + " seconds = " + strconv.Itoa(int(a.details.RetryInfo.RetryDelay.Seconds)) +
-			" nanos = " + strconv.Itoa(int(a.details.RetryInfo.RetryDelay.Seconds)) + "\n")
+		d.WriteString("api error: name = RetryInfo" + " seconds = " + strconv.Itoa(int(a.details.RetryInfo.RetryDelay.Seconds)) +
+			"\n")
 
 	}
 	if a.details.Unknown != nil {

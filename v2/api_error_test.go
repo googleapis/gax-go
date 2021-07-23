@@ -60,16 +60,7 @@ func TestGRPCStatus(t *testing.T) {
 	}
 }
 
-func TestNonAPIFromError(t *testing.T) {
-	if err, _ := FromError(nil); err != nil {
-		t.Errorf("Expected nil but got: %v", err)
-	}
-	if c, _ := FromError(context.DeadlineExceeded); c != nil {
-		t.Errorf("Expected nil but got: %v", c)
-	}
-}
-
-func TestAPIFromError(t *testing.T) {
+func TestFromError(t *testing.T) {
 	m := make(map[string]string)
 	m["type"] = "ErrorInfo"
 	ei := &errdetails.ErrorInfo{
@@ -148,9 +139,12 @@ func TestAPIFromError(t *testing.T) {
 		{&APIError{err: hS.Err(), status: hS, details: ErrDetails{Help: hp}}, true},
 		{&APIError{err: lS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, true},
 	}
+
 	for _, tc := range tests {
 		actual, apiB := FromError(tc.apierr.err)
+		fmt.Println(actual.err)
 		fmt.Println(actual)
+
 		if tc.b != apiB {
 			t.Errorf("Expected: %v but got: %v", tc.b, apiB)
 		}
@@ -163,6 +157,13 @@ func TestAPIFromError(t *testing.T) {
 		if diff := cmp.Diff(tc.apierr.err, actual.err, cmpopts.EquateErrors()); diff != "" {
 			t.Errorf("Actual(-), Expected(+): \n%s", diff)
 		}
+	}
 
+	if err, _ := FromError(nil); err != nil {
+		t.Errorf("Expected nil but got: %v", err)
+	}
+
+	if c, _ := FromError(context.DeadlineExceeded); c != nil {
+		t.Errorf("Expected nil but got: %v", c)
 	}
 }
