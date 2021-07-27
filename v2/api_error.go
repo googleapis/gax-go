@@ -66,7 +66,7 @@ func (a *APIError) Details() ErrDetails {
 	return a.details
 }
 
-// Unwrap extracts original error
+// Unwrap extracts the original error.
 func (a *APIError) Unwrap() error {
 	return a.err
 }
