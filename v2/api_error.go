@@ -61,7 +61,7 @@ type APIError struct {
 	details ErrDetails
 }
 
-// Details presents the error details in an APIError
+// Details presents the error details of the APIError.
 func (a *APIError) Details() ErrDetails {
 	return a.details
 }
