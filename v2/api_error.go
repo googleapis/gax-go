@@ -76,8 +76,8 @@ func (a *APIError) Error() string {
 	d.WriteString(a.err.Error() + "\n")
 
 	if a.details.ErrorInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = ErrorInfo reason = %s domain = %s",
-			a.details.ErrorInfo.GetReason(), a.details.ErrorInfo.GetDomain()))
+		d.WriteString(fmt.Sprintf("error details: name = ErrorInfo reason = %s domain = %s metadata = %s",
+			a.details.ErrorInfo.GetReason(), a.details.ErrorInfo.GetDomain(), a.details.ErrorInfo.GetMetadata()))
 	}
 
 	if a.details.BadRequest != nil {
