@@ -50,7 +50,7 @@ type ErrDetails struct {
 	Help                *errdetails.Help
 	LocalizedMessage    *errdetails.LocalizedMessage
 
-	// Unknown stores unidentifiable error details
+	// Unknown stores unidentifiable error details.
 	Unknown []interface{}
 }
 
