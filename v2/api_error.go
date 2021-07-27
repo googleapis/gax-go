@@ -71,7 +71,7 @@ func (a *APIError) Unwrap() error {
 	return a.err
 }
 
-// Error creates a readable representation of the APIError
+// Error returns a readable representation of the APIError.
 func (a *APIError) Error() string {
 	var d strings.Builder
 	d.WriteString(a.err.Error() + "\n")
