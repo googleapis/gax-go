@@ -54,7 +54,7 @@ type ErrDetails struct {
 	Unknown []interface{}
 }
 
-//APIError stores error status and details
+// APIError stores error status and details.
 type APIError struct {
 	err     error
 	status  *status.Status
