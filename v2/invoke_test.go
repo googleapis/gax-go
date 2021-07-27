@@ -35,6 +35,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -79,8 +81,8 @@ func TestInvokeCertificateError(t *testing.T) {
 	apiCall := func(context.Context, CallSettings) error { return apiErr }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
-	if err.Error() != apiErr.Error() {
-		t.Errorf("found error %s, want %s", err, stat.Err())
+	if diff := cmp.Diff(err, apiErr, cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("Actual(-), Expected(+): \n%s", diff)
 	}
 }
 
@@ -97,8 +99,9 @@ func TestInvokeAPIError(t *testing.T) {
 	apiCall := func(context.Context, CallSettings) error { return stat.Err() }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
-	if err.Error() != apiErr.Error() {
-		t.Errorf("found error %s, want %s", err, apiErr)
+
+	if diff := cmp.Diff(err.Error(), apiErr.Error(), cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("Actual(-), Expected(+): \n%s", diff)
 	}
 	if sp != 0 {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))

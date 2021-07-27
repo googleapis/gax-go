@@ -1,16 +1,43 @@
+// Copyright 2021, Google Inc.
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//     * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//     * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//     * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 package gax
 
-// code snippet credit to @ndietz
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
 )
 
-//ErrDetails holds the google/rpc/error_details.proto messages.
+// ErrDetails holds the google/rpc/error_details.proto messages.
 type ErrDetails struct {
 	ErrorInfo           *errdetails.ErrorInfo
 	BadRequest          *errdetails.BadRequest
@@ -23,7 +50,7 @@ type ErrDetails struct {
 	Help                *errdetails.Help
 	LocalizedMessage    *errdetails.LocalizedMessage
 
-	//Unknown stores unidentifiable error details
+	// Unknown stores unidentifiable error details
 	Unknown []interface{}
 }
 
@@ -33,24 +60,24 @@ type APIError struct {
 	details ErrDetails
 }
 
-//Details presents the error details in an APIError
+// Details presents the error details in an APIError
 func (a *APIError) Details() ErrDetails {
 	return a.details
 }
 
-//Unwrap extracts original error
+// Unwrap extracts original error
 func (a *APIError) Unwrap() error {
 	return a.err
 }
 
-//Error creates a readable representation of the APIError
+// Error creates a readable representation of the APIError
 func (a *APIError) Error() string {
 	var d strings.Builder
-	d.WriteString("Error Details: ")
+	d.WriteString(a.err.Error() + "\n")
 
 	if a.details.ErrorInfo != nil {
-		d.WriteString("api error: name = ErrorInfo" + " reason = " + a.details.ErrorInfo.Reason +
-			" domain = " + a.details.ErrorInfo.Domain + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = ErrorInfo reason = %s domain = %s",
+			a.details.ErrorInfo.GetReason(), a.details.ErrorInfo.GetDomain()))
 	}
 
 	if a.details.BadRequest != nil {
@@ -58,11 +85,11 @@ func (a *APIError) Error() string {
 		var f []string
 		var desc []string
 		for _, x := range v {
-			f = append(f, x.Field)
-			desc = append(desc, x.Description)
+			f = append(f, x.GetField())
+			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString("api error: name = BadRequest" + " field = " + strings.Join(f, " ") +
-			" desc = " + strings.Join(desc, " ") + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = BadRequest field = %s desc = %s",
+			strings.Join(f, " "), strings.Join(desc, " ")))
 	}
 
 	if a.details.PreconditionFailure != nil {
@@ -71,12 +98,12 @@ func (a *APIError) Error() string {
 		var s []string
 		var desc []string
 		for _, x := range v {
-			t = append(t, x.Type)
-			s = append(s, x.Subject)
-			desc = append(desc, x.Description)
+			t = append(t, x.GetType())
+			s = append(s, x.GetSubject())
+			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString("api error: name = PreconditionFailure" + " type = " + strings.Join(t, " ") +
-			" subj = " + strings.Join(s, " ") + " desc = " + strings.Join(desc, " ") + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = PreconditionFailure type = %s subj = %s desc = %s", strings.Join(t, " "),
+			strings.Join(s, " "), strings.Join(desc, " ")))
 	}
 
 	if a.details.QuotaFailure != nil {
@@ -84,27 +111,26 @@ func (a *APIError) Error() string {
 		var s []string
 		var desc []string
 		for _, x := range v {
-			s = append(s, x.Subject)
-			desc = append(desc, x.Description)
+			s = append(s, x.GetSubject())
+			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString("api error: name = QuotaFailure" + " subj = " + strings.Join(s, " ") +
-			" desc = " + strings.Join(desc, " ") + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = QuotaFailure subj = %s desc = %s",
+			strings.Join(s, " "), strings.Join(desc, " ")))
 	}
 
 	if a.details.RequestInfo != nil {
-		d.WriteString("api error: name = RequestInfo" + " id = " + a.details.RequestInfo.RequestId +
-			" data = " + a.details.RequestInfo.ServingData + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = RequestInfo id = %s data = %s",
+			a.details.RequestInfo.GetRequestId(), a.details.RequestInfo.GetServingData()))
 	}
 
 	if a.details.ResourceInfo != nil {
-		d.WriteString("api error: name = ResourceInfo" + " type = " + a.details.ResourceInfo.ResourceType +
-			" resourcename = " + a.details.ResourceInfo.ResourceName + " owner = " + a.details.ResourceInfo.Owner +
-			" desc = " + a.details.ResourceInfo.Description + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = ResourceInfo type = %s resourcename = %s owner = %s desc = %s",
+			a.details.ResourceInfo.GetResourceType(), a.details.ResourceInfo.GetResourceName(),
+			a.details.ResourceInfo.GetOwner(), a.details.ResourceInfo.GetDescription()))
 
 	}
 	if a.details.RetryInfo != nil {
-		d.WriteString("api error: name = RetryInfo" + " seconds = " + strconv.Itoa(int(a.details.RetryInfo.RetryDelay.Seconds)) +
-			"\n")
+		d.WriteString(fmt.Sprintf("error details: retry in %s", a.details.RetryInfo.GetRetryDelay().AsDuration()))
 
 	}
 	if a.details.Unknown != nil {
@@ -112,44 +138,45 @@ func (a *APIError) Error() string {
 		for _, x := range a.details.Unknown {
 			s = append(s, fmt.Sprintf("%v", x))
 		}
-		d.WriteString("api error: name = Unknown" + " desc = " + strings.Join(s, " ") + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s", strings.Join(s, " ")))
 
 	}
 	if a.details.DebugInfo != nil {
-		stack := strings.Join(a.details.DebugInfo.StackEntries, " ")
-		d.WriteString("api error: name = DebugInfo" + " detail = " + a.details.DebugInfo.Detail + " stack = " + stack + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = DebugInfo detail = %s stack = %s", a.details.DebugInfo.GetDetail(),
+			strings.Join(a.details.DebugInfo.GetStackEntries(), " ")))
 	}
 	if a.details.Help != nil {
-		var desc string
-		var url string
+		var desc []string
+		var url []string
 		for _, x := range a.details.Help.Links {
-			desc = x.Description
-			url = x.Url
+			desc = append(desc, x.GetDescription())
+			url = append(url, x.GetUrl())
 		}
-		d.WriteString("api error: name = Help" + " desc = " + desc + " url = " + url + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = Help desc = %s url = %s",
+			strings.Join(desc, " "), strings.Join(url, " ")))
 	}
 	if a.details.LocalizedMessage != nil {
-		d.WriteString("api error: name = LocalizedMessge" + " locale = " + a.details.LocalizedMessage.Locale +
-			" msg = " + a.details.LocalizedMessage.Message + "\n")
+		d.WriteString(fmt.Sprintf("error details: name = LocalizedMessge locale = %s msg = %s",
+			a.details.LocalizedMessage.GetLocale(), a.details.LocalizedMessage.GetMessage()))
 	}
-	return d.String()
+	return strings.TrimSpace(d.String())
 }
 
-//GRPCStatus extracts underlying gRPC status in APIError
+// GRPCStatus extracts underlying gRPC status in a APIError
 func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
 
-//FromError extracts gRPC status from an error and builds an APIError
+// FromError builds an APIError from an error
 func FromError(err error) (*APIError, bool) {
 	if err == nil {
 		return nil, false
 	}
-	msg := ErrDetails{}
 	st, ok := status.FromError(err)
 	if !ok {
 		return nil, false
 	}
+	msg := ErrDetails{}
 	for _, d := range st.Details() {
 		switch d := d.(type) {
 		case *errdetails.ErrorInfo:
