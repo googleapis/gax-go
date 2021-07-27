@@ -168,7 +168,7 @@ func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
 
-// FromError builds an APIError from an error
+// FromError builds an APIError from an error.
 func FromError(err error) (*APIError, bool) {
 	if err == nil {
 		return nil, false
