@@ -31,7 +31,9 @@ package gax
 
 import (
 	"context"
-	"strings"
+	"flag"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -40,69 +42,127 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
+
+var update = flag.Bool("update", false, "update golden files")
 
 func TestDetails(t *testing.T) {
 	qf := &errdetails.QuotaFailure{
 		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
 	}
-	st, _ := status.New(codes.ResourceExhausted, "qf").WithDetails(qf)
+	qS, _ := status.New(codes.ResourceExhausted, "test").WithDetails(qf)
 	apierr := &APIError{
-		err:     st.Err(),
-		status:  st,
+		err:     qS.Err(),
+		status:  qS,
 		details: ErrDetails{QuotaFailure: qf},
 	}
-	if diff := cmp.Diff(ErrDetails{QuotaFailure: qf}, apierr.Details(), cmp.Comparer(proto.Equal)); diff != "" {
-		t.Errorf("Expected(+), Actual(-):\n%s", diff)
+	got := apierr.Details()
+	want := ErrDetails{QuotaFailure: qf}
+	if diff := cmp.Diff(got, want, cmp.Comparer(proto.Equal)); diff != "" {
+		t.Errorf("got(+), want(-):\n%s", diff)
 	}
 }
-
-func TestError(t *testing.T) {
+func TestUnwrap(t *testing.T) {
 	pf := &errdetails.PreconditionFailure{
-		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar", Description: "test"}},
+		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar", Description: "desc"}},
 	}
-	st, _ := status.New(codes.FailedPrecondition, "pf").WithDetails(pf)
+	pS, _ := status.New(codes.FailedPrecondition, "test").WithDetails(pf)
 	apierr := &APIError{
-		err:     st.Err(),
-		status:  st,
+		err:     pS.Err(),
+		status:  pS,
 		details: ErrDetails{PreconditionFailure: pf},
 	}
-	if !strings.Contains(apierr.Error(), "Foo") {
-		t.Errorf("Status message not included!")
+	got := apierr.Unwrap()
+	want := pS.Err()
+	if diff := cmp.Diff(got, want, cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("got(+), want(-):\n%s", diff)
 	}
+}
+func TestError(t *testing.T) {
+	ei := &errdetails.ErrorInfo{
+		Reason:   "Foo",
+		Domain:   "Bar",
+		Metadata: map[string]string{"type": "test"},
+	}
+	eS, _ := status.New(codes.Unauthenticated, "ei").WithDetails(ei)
+
+	br := &errdetails.BadRequest{FieldViolations: []*errdetails.BadRequest_FieldViolation{{
+		Field:       "Foo",
+		Description: "Bar",
+	}},
+	}
+	bS, _ := status.New(codes.InvalidArgument, "br").WithDetails(br)
+
+	qf := &errdetails.QuotaFailure{
+		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
+	}
+	pf := &errdetails.PreconditionFailure{
+		Violations: []*errdetails.PreconditionFailure_Violation{{Type: "Foo", Subject: "Bar", Description: "desc"}},
+	}
+
+	ri := &errdetails.RetryInfo{
+		RetryDelay: &durationpb.Duration{Seconds: 10, Nanos: 10},
+	}
+	rq := &errdetails.RequestInfo{
+		RequestId:   "Foo",
+		ServingData: "Bar",
+	}
+	rqS, _ := status.New(codes.Canceled, "Request cancelled by client").WithDetails(rq, ri, pf, br, qf)
+
+	tests := []struct {
+		apierr *APIError
+		name   string
+	}{
+		{&APIError{err: eS.Err(), status: eS, details: ErrDetails{ErrorInfo: ei}}, "error_info"},
+		{&APIError{err: bS.Err(), status: bS, details: ErrDetails{BadRequest: br}}, "bad_request"},
+		{&APIError{err: rqS.Err(), status: rqS, details: ErrDetails{RequestInfo: rq, RetryInfo: ri,
+			PreconditionFailure: pf, QuotaFailure: qf, BadRequest: br}}, "multiple_info"},
+		{&APIError{err: bS.Err(), status: bS, details: ErrDetails{}}, "empty"},
+	}
+	for _, tc := range tests {
+		t.Helper()
+		got := tc.apierr.Error()
+		want, err := golden(tc.name, got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("got(+), want(-),: \n%s", diff)
+		}
+	}
+
 }
 
 func TestGRPCStatus(t *testing.T) {
 	qf := &errdetails.QuotaFailure{
 		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
 	}
-	st, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
+	want, _ := status.New(codes.ResourceExhausted, "test").WithDetails(qf)
 	apierr := &APIError{
-		err:     st.Err(),
-		status:  st,
+		err:     want.Err(),
+		status:  want,
 		details: ErrDetails{QuotaFailure: qf},
 	}
-	if st != apierr.GRPCStatus() {
-		t.Errorf("Expected: %v but got: %v", st, apierr.GRPCStatus())
+	got := apierr.GRPCStatus()
+	if diff := cmp.Diff(got, want, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
+		t.Errorf("got(+), want(-),: \n%s", diff)
 	}
 }
 
 func TestFromError(t *testing.T) {
-	m := make(map[string]string)
-	m["type"] = "ErrorInfo"
 	ei := &errdetails.ErrorInfo{
 		Reason:   "Foo",
 		Domain:   "Bar",
-		Metadata: m,
+		Metadata: map[string]string{"type": "test"},
 	}
 	eS, _ := status.New(codes.Unauthenticated, "ei").WithDetails(ei)
 
-	br := &errdetails.BadRequest{
-		FieldViolations: []*errdetails.BadRequest_FieldViolation{{
-			Field:       "Foo",
-			Description: "Bar",
-		}},
+	br := &errdetails.BadRequest{FieldViolations: []*errdetails.BadRequest_FieldViolation{{
+		Field:       "Foo",
+		Description: "Bar",
+	}},
 	}
 	bS, _ := status.New(codes.InvalidArgument, "br").WithDetails(br)
 
@@ -152,6 +212,12 @@ func TestFromError(t *testing.T) {
 	}
 	lS, _ := status.New(codes.Unknown, "Localized Message").WithDetails(lo)
 
+	msg := &descriptorpb.DescriptorProto{
+		Name: proto.String("Foo"),
+	}
+	u := []interface{}{msg}
+	uS, _ := status.New(codes.Unknown, "test").WithDetails(msg)
+
 	tests := []struct {
 		apierr *APIError
 		b      bool
@@ -166,30 +232,40 @@ func TestFromError(t *testing.T) {
 		{&APIError{err: dS.Err(), status: dS, details: ErrDetails{DebugInfo: deb}}, true},
 		{&APIError{err: hS.Err(), status: hS, details: ErrDetails{Help: hp}}, true},
 		{&APIError{err: lS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, true},
+		{&APIError{err: uS.Err(), status: uS, details: ErrDetails{Unknown: u}}, true},
 	}
 
 	for _, tc := range tests {
-		actual, apiB := FromError(tc.apierr.err)
-
+		got, apiB := FromError(tc.apierr.err)
 		if tc.b != apiB {
-			t.Errorf("Expected: %v but got: %v", tc.b, apiB)
+			t.Errorf("got %v, want %v", apiB, tc.b)
 		}
-		if diff := cmp.Diff(tc.apierr.details, actual.details, cmp.Comparer(proto.Equal)); diff != "" {
-			t.Errorf("Actual(-), Expected(+): \n%s", diff)
+		if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
+			t.Errorf("got(+), want(-),: \n%s", diff)
 		}
-		if diff := cmp.Diff(tc.apierr.status, actual.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
-			t.Errorf("Actual(-), Expected(+): \n%s", diff)
+		if diff := cmp.Diff(got.status, tc.apierr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
+			t.Errorf("got(+), want(-),: \n%s", diff)
 		}
-		if diff := cmp.Diff(tc.apierr.err, actual.err, cmpopts.EquateErrors()); diff != "" {
-			t.Errorf("Actual(-), Expected(+): \n%s", diff)
+		if diff := cmp.Diff(got.err, tc.apierr.err, cmpopts.EquateErrors()); diff != "" {
+			t.Errorf("got(+), want(-),: \n%s", diff)
 		}
 	}
-
 	if err, _ := FromError(nil); err != nil {
-		t.Errorf("Expected nil but got: %v", err)
+		t.Errorf("got %s, want nil", err)
 	}
 
 	if c, _ := FromError(context.DeadlineExceeded); c != nil {
-		t.Errorf("Expected nil but got: %v", c)
+		t.Errorf("got %s, want nil", c)
 	}
+}
+
+func golden(name, got string) (string, error) {
+	g := filepath.Join("testdata", name+".golden")
+	if *update {
+		if err := ioutil.WriteFile(g, []byte(got), 0644); err != nil {
+			return "", err
+		}
+	}
+	want, err := ioutil.ReadFile(g)
+	return string(want), err
 }

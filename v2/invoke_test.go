@@ -82,7 +82,7 @@ func TestInvokeCertificateError(t *testing.T) {
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
 	if diff := cmp.Diff(err, apiErr, cmpopts.EquateErrors()); diff != "" {
-		t.Errorf("Actual(-), Expected(+): \n%s", diff)
+		t.Errorf("got(+), want(-): \n%s", diff)
 	}
 }
 
@@ -99,9 +99,8 @@ func TestInvokeAPIError(t *testing.T) {
 	apiCall := func(context.Context, CallSettings) error { return stat.Err() }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
-
-	if diff := cmp.Diff(err.Error(), apiErr.Error(), cmpopts.EquateErrors()); diff != "" {
-		t.Errorf("Actual(-), Expected(+): \n%s", diff)
+	if diff := cmp.Diff(err.Error(), apiErr.Error()); diff != "" {
+		t.Errorf("got(+), want(-): \n%s", diff)
 	}
 	if sp != 0 {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))

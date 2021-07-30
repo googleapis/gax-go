@@ -50,28 +50,28 @@ type ErrDetails struct {
 	Help                *errdetails.Help
 	LocalizedMessage    *errdetails.LocalizedMessage
 
-	// Unknown stores unidentifiable error details
+	// Unknown stores unidentifiable error details.
 	Unknown []interface{}
 }
 
-//APIError stores error status and details
+// APIError wraps a gRPC Status error. It implements error and Status.
 type APIError struct {
 	err     error
 	status  *status.Status
 	details ErrDetails
 }
 
-// Details presents the error details in an APIError
+// Details presents the error details of the APIError.
 func (a *APIError) Details() ErrDetails {
 	return a.details
 }
 
-// Unwrap extracts original error
+// Unwrap extracts the original error.
 func (a *APIError) Unwrap() error {
 	return a.err
 }
 
-// Error creates a readable representation of the APIError
+// Error returns a readable representation of the APIError.
 func (a *APIError) Error() string {
 	var d strings.Builder
 	d.WriteString(a.err.Error() + "\n")
@@ -140,8 +140,8 @@ func (a *APIError) Error() string {
 			s = append(s, fmt.Sprintf("%v", x))
 		}
 		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s", strings.Join(s, " ")))
-
 	}
+
 	if a.details.DebugInfo != nil {
 		d.WriteString(fmt.Sprintf("error details: name = DebugInfo detail = %s stack = %s", a.details.DebugInfo.GetDetail(),
 			strings.Join(a.details.DebugInfo.GetStackEntries(), " ")))
@@ -163,12 +163,12 @@ func (a *APIError) Error() string {
 	return strings.TrimSpace(d.String())
 }
 
-// GRPCStatus extracts underlying gRPC status in a APIError
+// GRPCStatus extracts the underlying gRPC Status error.
 func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
 
-// FromError builds an APIError from an error
+// FromError parses a Status error and builds an APIError.
 func FromError(err error) (*APIError, bool) {
 	if err == nil {
 		return nil, false
