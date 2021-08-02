@@ -9,5 +9,5 @@ require (
 	golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3
 	golang.org/x/tools v0.1.5
 	google.golang.org/grpc v1.19.0
-	honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099
+	honnef.co/go/tools v0.2.0
 )
