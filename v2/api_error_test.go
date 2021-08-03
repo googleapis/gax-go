@@ -151,6 +151,49 @@ func TestGRPCStatus(t *testing.T) {
 	}
 }
 
+func TestReason(t *testing.T) {
+	tests := []struct {
+		ei *errdetails.ErrorInfo
+	}{
+		{&errdetails.ErrorInfo{Reason: "Foo", Domain: "Bar", Metadata: map[string]string{"type": "test"}}},
+		{&errdetails.ErrorInfo{}},
+	}
+	for _, tc := range tests {
+		apierr := make(tc.ei)
+		if diff := cmp.Diff(apierr.Reason(), tc.ei.GetReason()); diff != "" {
+			t.Errorf("got(+), want(-),: \n%s", diff)
+		}
+	}
+}
+func TestDomain(t *testing.T) {
+	tests := []struct {
+		ei *errdetails.ErrorInfo
+	}{
+		{&errdetails.ErrorInfo{Reason: "Foo", Domain: "Bar", Metadata: map[string]string{"type": "test"}}},
+		{&errdetails.ErrorInfo{}},
+	}
+	for _, tc := range tests {
+		apierr := make(tc.ei)
+		if diff := cmp.Diff(apierr.Domain(), tc.ei.GetDomain()); diff != "" {
+			t.Errorf("got(+), want(-),: \n%s", diff)
+		}
+	}
+}
+func TestMetaData(t *testing.T) {
+	tests := []struct {
+		ei *errdetails.ErrorInfo
+	}{
+		{&errdetails.ErrorInfo{Reason: "Foo", Domain: "Bar", Metadata: map[string]string{"type": "test"}}},
+		{&errdetails.ErrorInfo{}},
+	}
+	for _, tc := range tests {
+		apierr := make(tc.ei)
+		if diff := cmp.Diff(apierr.MetaData(), tc.ei.GetMetadata()); diff != "" {
+			t.Errorf("got(+), want(-),: \n%s", diff)
+		}
+	}
+}
+
 func TestFromError(t *testing.T) {
 	ei := &errdetails.ErrorInfo{
 		Reason:   "Foo",
@@ -268,4 +311,13 @@ func golden(name, got string) (string, error) {
 	}
 	want, err := ioutil.ReadFile(g)
 	return string(want), err
+}
+
+func make(e *errdetails.ErrorInfo) *APIError {
+	st, _ := status.New(codes.Unavailable, "test").WithDetails(e)
+	return &APIError{
+		err:     st.Err(),
+		status:  st,
+		details: ErrDetails{ErrorInfo: e},
+	}
 }

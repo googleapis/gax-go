@@ -168,6 +168,33 @@ func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
 
+// Reason returns the reason in an ErrorInfo.
+// If ErrorInfo is empty, it returns an empty string.
+func (a *APIError) Reason() string {
+	if a.details.ErrorInfo.GetReason() != "" {
+		return a.details.ErrorInfo.GetReason()
+	}
+	return ""
+}
+
+// Domain returns the domain in an ErrorInfo.
+// If ErrorInfo is empty, it returns an empty string.
+func (a *APIError) Domain() string {
+	if a.details.ErrorInfo.GetDomain() != "" {
+		return a.details.ErrorInfo.GetDomain()
+	}
+	return ""
+}
+
+// MetaData returns the metadata in an ErrorInfo.
+// If ErroInfo is empty, it returns nil.
+func (a *APIError) MetaData() map[string]string {
+	if a.details.ErrorInfo.GetMetadata() != nil {
+		return a.details.ErrorInfo.GetMetadata()
+	}
+	return nil
+}
+
 // FromError parses a Status error and builds an APIError.
 func FromError(err error) (*APIError, bool) {
 	if err == nil {
