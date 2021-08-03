@@ -27,7 +27,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package gax
+package apierr
 
 import (
 	"context"
@@ -61,7 +61,7 @@ func TestDetails(t *testing.T) {
 	got := apierr.Details()
 	want := ErrDetails{QuotaFailure: qf}
 	if diff := cmp.Diff(got, want, cmp.Comparer(proto.Equal)); diff != "" {
-		t.Errorf("got(+), want(-):\n%s", diff)
+		t.Errorf("got(-), want(+):\n%s", diff)
 	}
 }
 func TestUnwrap(t *testing.T) {
@@ -77,7 +77,7 @@ func TestUnwrap(t *testing.T) {
 	got := apierr.Unwrap()
 	want := pS.Err()
 	if diff := cmp.Diff(got, want, cmpopts.EquateErrors()); diff != "" {
-		t.Errorf("got(+), want(-):\n%s", diff)
+		t.Errorf("got(-), want(+):\n%s", diff)
 	}
 }
 func TestError(t *testing.T) {
@@ -129,7 +129,7 @@ func TestError(t *testing.T) {
 			t.Fatal(err)
 		}
 		if diff := cmp.Diff(got, want); diff != "" {
-			t.Errorf("got(+), want(-),: \n%s", diff)
+			t.Errorf("got(-), want(+),: \n%s", diff)
 		}
 	}
 
@@ -147,7 +147,7 @@ func TestGRPCStatus(t *testing.T) {
 	}
 	got := apierr.GRPCStatus()
 	if diff := cmp.Diff(got, want, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
-		t.Errorf("got(+), want(-),: \n%s", diff)
+		t.Errorf("got(-), want(+),: \n%s", diff)
 	}
 }
 
@@ -155,13 +155,13 @@ func TestReason(t *testing.T) {
 	tests := []struct {
 		ei *errdetails.ErrorInfo
 	}{
-		{&errdetails.ErrorInfo{Reason: "Foo", Domain: "Bar", Metadata: map[string]string{"type": "test"}}},
+		{&errdetails.ErrorInfo{Reason: "Foo"}},
 		{&errdetails.ErrorInfo{}},
 	}
 	for _, tc := range tests {
-		apierr := make(tc.ei)
+		apierr := toAPIError(tc.ei)
 		if diff := cmp.Diff(apierr.Reason(), tc.ei.GetReason()); diff != "" {
-			t.Errorf("got(+), want(-),: \n%s", diff)
+			t.Errorf("got(-), want(+),: \n%s", diff)
 		}
 	}
 }
@@ -169,27 +169,27 @@ func TestDomain(t *testing.T) {
 	tests := []struct {
 		ei *errdetails.ErrorInfo
 	}{
-		{&errdetails.ErrorInfo{Reason: "Foo", Domain: "Bar", Metadata: map[string]string{"type": "test"}}},
+		{&errdetails.ErrorInfo{Domain: "Bar"}},
 		{&errdetails.ErrorInfo{}},
 	}
 	for _, tc := range tests {
-		apierr := make(tc.ei)
+		apierr := toAPIError(tc.ei)
 		if diff := cmp.Diff(apierr.Domain(), tc.ei.GetDomain()); diff != "" {
-			t.Errorf("got(+), want(-),: \n%s", diff)
+			t.Errorf("got(-), want(+),: \n%s", diff)
 		}
 	}
 }
-func TestMetaData(t *testing.T) {
+func TestMetadata(t *testing.T) {
 	tests := []struct {
 		ei *errdetails.ErrorInfo
 	}{
-		{&errdetails.ErrorInfo{Reason: "Foo", Domain: "Bar", Metadata: map[string]string{"type": "test"}}},
+		{&errdetails.ErrorInfo{Metadata: map[string]string{"type": "test"}}},
 		{&errdetails.ErrorInfo{}},
 	}
 	for _, tc := range tests {
-		apierr := make(tc.ei)
-		if diff := cmp.Diff(apierr.MetaData(), tc.ei.GetMetadata()); diff != "" {
-			t.Errorf("got(+), want(-),: \n%s", diff)
+		apierr := toAPIError(tc.ei)
+		if diff := cmp.Diff(apierr.Metadata(), tc.ei.GetMetadata()); diff != "" {
+			t.Errorf("got(-), want(+),: \n%s", diff)
 		}
 	}
 }
@@ -284,13 +284,13 @@ func TestFromError(t *testing.T) {
 			t.Errorf("got %v, want %v", apiB, tc.b)
 		}
 		if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
-			t.Errorf("got(+), want(-),: \n%s", diff)
+			t.Errorf("got(-), want(+),: \n%s", diff)
 		}
 		if diff := cmp.Diff(got.status, tc.apierr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
-			t.Errorf("got(+), want(-),: \n%s", diff)
+			t.Errorf("got(-), want(+),: \n%s", diff)
 		}
 		if diff := cmp.Diff(got.err, tc.apierr.err, cmpopts.EquateErrors()); diff != "" {
-			t.Errorf("got(+), want(-),: \n%s", diff)
+			t.Errorf("got(-), want(+),: \n%s", diff)
 		}
 	}
 	if err, _ := FromError(nil); err != nil {
@@ -313,7 +313,7 @@ func golden(name, got string) (string, error) {
 	return string(want), err
 }
 
-func make(e *errdetails.ErrorInfo) *APIError {
+func toAPIError(e *errdetails.ErrorInfo) *APIError {
 	st, _ := status.New(codes.Unavailable, "test").WithDetails(e)
 	return &APIError{
 		err:     st.Err(),

@@ -37,6 +37,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	apierror "github.com/googleapis/gax-go/v2/apierror"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -82,7 +83,7 @@ func TestInvokeCertificateError(t *testing.T) {
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
 	if diff := cmp.Diff(err, apiErr, cmpopts.EquateErrors()); diff != "" {
-		t.Errorf("got(+), want(-): \n%s", diff)
+		t.Errorf("got(-), want(+): \n%s", diff)
 	}
 }
 
@@ -91,16 +92,12 @@ func TestInvokeAPIError(t *testing.T) {
 		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
 	}
 	stat, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
-	apiErr := &APIError{
-		err:     stat.Err(),
-		status:  stat,
-		details: ErrDetails{QuotaFailure: qf},
-	}
+	apiErr, _ := apierror.FromError(stat.Err())
 	apiCall := func(context.Context, CallSettings) error { return stat.Err() }
 	var sp recordSleeper
 	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
 	if diff := cmp.Diff(err.Error(), apiErr.Error()); diff != "" {
-		t.Errorf("got(+), want(-): \n%s", diff)
+		t.Errorf("got(-), want(+): \n%s", diff)
 	}
 	if sp != 0 {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))

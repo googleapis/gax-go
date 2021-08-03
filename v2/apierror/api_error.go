@@ -27,7 +27,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package gax
+package apierr
 
 import (
 	"fmt"
@@ -77,7 +77,7 @@ func (a *APIError) Error() string {
 	d.WriteString(a.err.Error() + "\n")
 
 	if a.details.ErrorInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = ErrorInfo reason = %s domain = %s metadata = %s",
+		d.WriteString(fmt.Sprintf("error details: name = ErrorInfo reason = %s domain = %s metadata = %s \n",
 			a.details.ErrorInfo.GetReason(), a.details.ErrorInfo.GetDomain(), a.details.ErrorInfo.GetMetadata()))
 	}
 
@@ -89,7 +89,7 @@ func (a *APIError) Error() string {
 			f = append(f, x.GetField())
 			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = BadRequest field = %s desc = %s",
+		d.WriteString(fmt.Sprintf("error details: name = BadRequest field = %s desc = %s \n",
 			strings.Join(f, " "), strings.Join(desc, " ")))
 	}
 
@@ -103,7 +103,7 @@ func (a *APIError) Error() string {
 			s = append(s, x.GetSubject())
 			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = PreconditionFailure type = %s subj = %s desc = %s", strings.Join(t, " "),
+		d.WriteString(fmt.Sprintf("error details: name = PreconditionFailure type = %s subj = %s desc = %s \n", strings.Join(t, " "),
 			strings.Join(s, " "), strings.Join(desc, " ")))
 	}
 
@@ -115,23 +115,23 @@ func (a *APIError) Error() string {
 			s = append(s, x.GetSubject())
 			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = QuotaFailure subj = %s desc = %s",
+		d.WriteString(fmt.Sprintf("error details: name = QuotaFailure subj = %s desc = %s \n",
 			strings.Join(s, " "), strings.Join(desc, " ")))
 	}
 
 	if a.details.RequestInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = RequestInfo id = %s data = %s",
+		d.WriteString(fmt.Sprintf("error details: name = RequestInfo id = %s data = %s \n",
 			a.details.RequestInfo.GetRequestId(), a.details.RequestInfo.GetServingData()))
 	}
 
 	if a.details.ResourceInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = ResourceInfo type = %s resourcename = %s owner = %s desc = %s",
+		d.WriteString(fmt.Sprintf("error details: name = ResourceInfo type = %s resourcename = %s owner = %s desc = %s \n",
 			a.details.ResourceInfo.GetResourceType(), a.details.ResourceInfo.GetResourceName(),
 			a.details.ResourceInfo.GetOwner(), a.details.ResourceInfo.GetDescription()))
 
 	}
 	if a.details.RetryInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: retry in %s", a.details.RetryInfo.GetRetryDelay().AsDuration()))
+		d.WriteString(fmt.Sprintf("error details: retry in %s \n", a.details.RetryInfo.GetRetryDelay().AsDuration()))
 
 	}
 	if a.details.Unknown != nil {
@@ -139,11 +139,11 @@ func (a *APIError) Error() string {
 		for _, x := range a.details.Unknown {
 			s = append(s, fmt.Sprintf("%v", x))
 		}
-		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s", strings.Join(s, " ")))
+		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s \n", strings.Join(s, " ")))
 	}
 
 	if a.details.DebugInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = DebugInfo detail = %s stack = %s", a.details.DebugInfo.GetDetail(),
+		d.WriteString(fmt.Sprintf("error details: name = DebugInfo detail = %s stack = %s \n", a.details.DebugInfo.GetDetail(),
 			strings.Join(a.details.DebugInfo.GetStackEntries(), " ")))
 	}
 	if a.details.Help != nil {
@@ -153,11 +153,11 @@ func (a *APIError) Error() string {
 			desc = append(desc, x.GetDescription())
 			url = append(url, x.GetUrl())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = Help desc = %s url = %s",
+		d.WriteString(fmt.Sprintf("error details: name = Help desc = %s url = %s \n",
 			strings.Join(desc, " "), strings.Join(url, " ")))
 	}
 	if a.details.LocalizedMessage != nil {
-		d.WriteString(fmt.Sprintf("error details: name = LocalizedMessge locale = %s msg = %s",
+		d.WriteString(fmt.Sprintf("error details: name = LocalizedMessge locale = %s msg = %s \n",
 			a.details.LocalizedMessage.GetLocale(), a.details.LocalizedMessage.GetMessage()))
 	}
 	return strings.TrimSpace(d.String())
@@ -169,27 +169,27 @@ func (a *APIError) GRPCStatus() *status.Status {
 }
 
 // Reason returns the reason in an ErrorInfo.
-// If ErrorInfo is empty, it returns an empty string.
+// If ErrorInfo is nil, it returns an empty string.
 func (a *APIError) Reason() string {
-	if a.details.ErrorInfo.GetReason() != "" {
+	if a.details.ErrorInfo != nil {
 		return a.details.ErrorInfo.GetReason()
 	}
 	return ""
 }
 
 // Domain returns the domain in an ErrorInfo.
-// If ErrorInfo is empty, it returns an empty string.
+// If ErrorInfo is nil, it returns an empty string.
 func (a *APIError) Domain() string {
-	if a.details.ErrorInfo.GetDomain() != "" {
+	if a.details.ErrorInfo != nil {
 		return a.details.ErrorInfo.GetDomain()
 	}
 	return ""
 }
 
 // MetaData returns the metadata in an ErrorInfo.
-// If ErroInfo is empty, it returns nil.
-func (a *APIError) MetaData() map[string]string {
-	if a.details.ErrorInfo.GetMetadata() != nil {
+// If ErroInfo is nil, it returns nil.
+func (a *APIError) Metadata() map[string]string {
+	if a.details.ErrorInfo != nil {
 		return a.details.ErrorInfo.GetMetadata()
 	}
 	return nil
