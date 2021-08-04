@@ -28,8 +28,8 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
-Package apierror implements a wrapper error for parsing
-error details from gRPC calls.
+Package apierror implements a wrapper error for parsing error details from
+gRPC calls. Currently, only errors representing a gRPC status are supported.
 */
 package apierror
 
@@ -81,7 +81,7 @@ func (a *APIError) Error() string {
 	d.WriteString(a.err.Error() + "\n")
 
 	if a.details.ErrorInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = ErrorInfo reason = %s domain = %s metadata = %s \n",
+		d.WriteString(fmt.Sprintf("error details: name = ErrorInfo reason = %s domain = %s metadata = %s\n",
 			a.details.ErrorInfo.GetReason(), a.details.ErrorInfo.GetDomain(), a.details.ErrorInfo.GetMetadata()))
 	}
 
@@ -93,7 +93,7 @@ func (a *APIError) Error() string {
 			f = append(f, x.GetField())
 			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = BadRequest field = %s desc = %s \n",
+		d.WriteString(fmt.Sprintf("error details: name = BadRequest field = %s desc = %s\n",
 			strings.Join(f, " "), strings.Join(desc, " ")))
 	}
 
@@ -107,7 +107,7 @@ func (a *APIError) Error() string {
 			s = append(s, x.GetSubject())
 			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = PreconditionFailure type = %s subj = %s desc = %s \n", strings.Join(t, " "),
+		d.WriteString(fmt.Sprintf("error details: name = PreconditionFailure type = %s subj = %s desc = %s\n", strings.Join(t, " "),
 			strings.Join(s, " "), strings.Join(desc, " ")))
 	}
 
@@ -119,23 +119,23 @@ func (a *APIError) Error() string {
 			s = append(s, x.GetSubject())
 			desc = append(desc, x.GetDescription())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = QuotaFailure subj = %s desc = %s \n",
+		d.WriteString(fmt.Sprintf("error details: name = QuotaFailure subj = %s desc = %s\n",
 			strings.Join(s, " "), strings.Join(desc, " ")))
 	}
 
 	if a.details.RequestInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = RequestInfo id = %s data = %s \n",
+		d.WriteString(fmt.Sprintf("error details: name = RequestInfo id = %s data = %s\n",
 			a.details.RequestInfo.GetRequestId(), a.details.RequestInfo.GetServingData()))
 	}
 
 	if a.details.ResourceInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = ResourceInfo type = %s resourcename = %s owner = %s desc = %s \n",
+		d.WriteString(fmt.Sprintf("error details: name = ResourceInfo type = %s resourcename = %s owner = %s desc = %s\n",
 			a.details.ResourceInfo.GetResourceType(), a.details.ResourceInfo.GetResourceName(),
 			a.details.ResourceInfo.GetOwner(), a.details.ResourceInfo.GetDescription()))
 
 	}
 	if a.details.RetryInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: retry in %s \n", a.details.RetryInfo.GetRetryDelay().AsDuration()))
+		d.WriteString(fmt.Sprintf("error details: retry in %s\n", a.details.RetryInfo.GetRetryDelay().AsDuration()))
 
 	}
 	if a.details.Unknown != nil {
@@ -143,11 +143,11 @@ func (a *APIError) Error() string {
 		for _, x := range a.details.Unknown {
 			s = append(s, fmt.Sprintf("%v", x))
 		}
-		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s \n", strings.Join(s, " ")))
+		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s\n", strings.Join(s, " ")))
 	}
 
 	if a.details.DebugInfo != nil {
-		d.WriteString(fmt.Sprintf("error details: name = DebugInfo detail = %s stack = %s \n", a.details.DebugInfo.GetDetail(),
+		d.WriteString(fmt.Sprintf("error details: name = DebugInfo detail = %s stack = %s\n", a.details.DebugInfo.GetDetail(),
 			strings.Join(a.details.DebugInfo.GetStackEntries(), " ")))
 	}
 	if a.details.Help != nil {
@@ -157,11 +157,11 @@ func (a *APIError) Error() string {
 			desc = append(desc, x.GetDescription())
 			url = append(url, x.GetUrl())
 		}
-		d.WriteString(fmt.Sprintf("error details: name = Help desc = %s url = %s \n",
+		d.WriteString(fmt.Sprintf("error details: name = Help desc = %s url = %s\n",
 			strings.Join(desc, " "), strings.Join(url, " ")))
 	}
 	if a.details.LocalizedMessage != nil {
-		d.WriteString(fmt.Sprintf("error details: name = LocalizedMessge locale = %s msg = %s \n",
+		d.WriteString(fmt.Sprintf("error details: name = LocalizedMessge locale = %s msg = %s\n",
 			a.details.LocalizedMessage.GetLocale(), a.details.LocalizedMessage.GetMessage()))
 	}
 	return strings.TrimSpace(d.String())
