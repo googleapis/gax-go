@@ -29,7 +29,7 @@
 
 /*
 Package apierror implements a wrapper error for parsing error details from
-gRPC calls. Currently, only errors representing a gRPC status are supported.
+API calls. Currently, only errors representing a gRPC status are supported.
 */
 package apierror
 
