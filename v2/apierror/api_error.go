@@ -27,7 +27,11 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package apierr
+/*
+Package apierror implements a wrapper error for parsing
+error details from gRPC calls.
+*/
+package apierror
 
 import (
 	"fmt"
@@ -171,28 +175,20 @@ func (a *APIError) GRPCStatus() *status.Status {
 // Reason returns the reason in an ErrorInfo.
 // If ErrorInfo is nil, it returns an empty string.
 func (a *APIError) Reason() string {
-	if a.details.ErrorInfo != nil {
-		return a.details.ErrorInfo.GetReason()
-	}
-	return ""
+	return a.details.ErrorInfo.GetReason()
 }
 
 // Domain returns the domain in an ErrorInfo.
 // If ErrorInfo is nil, it returns an empty string.
 func (a *APIError) Domain() string {
-	if a.details.ErrorInfo != nil {
-		return a.details.ErrorInfo.GetDomain()
-	}
-	return ""
+	return a.details.ErrorInfo.GetDomain()
 }
 
 // MetaData returns the metadata in an ErrorInfo.
 // If ErroInfo is nil, it returns nil.
 func (a *APIError) Metadata() map[string]string {
-	if a.details.ErrorInfo != nil {
-		return a.details.ErrorInfo.GetMetadata()
-	}
-	return nil
+	return a.details.ErrorInfo.GetMetadata()
+
 }
 
 // FromError parses a Status error and builds an APIError.
