@@ -1,2 +1,0 @@
-rpc error: code = Canceled desc = Request cancelled by client
-error details: name = BadRequest field = Foo desc = Barerror details: name = PreconditionFailure type = Foo subj = Bar desc = descerror details: name = QuotaFailure subj = Foo desc = Barerror details: name = RequestInfo id = Foo data = Barerror details: retry in 10.00000001s

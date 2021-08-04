@@ -33,6 +33,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	apierror "github.com/googleapis/gax-go/v2/apierror"
 )
 
 // APICall is a user defined call stub.
@@ -80,7 +82,7 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		if strings.Contains(err.Error(), "x509: certificate signed by unknown authority") {
 			return err
 		}
-		if apierr, ok := FromError(err); ok {
+		if apierr, ok := apierror.FromError(err); ok {
 			err = apierr
 		}
 		if settings.Retry == nil {
