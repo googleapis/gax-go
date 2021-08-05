@@ -34,7 +34,7 @@ import (
 	"strings"
 	"time"
 
-	apierror "github.com/googleapis/gax-go/v2/apierror"
+	"github.com/googleapis/gax-go/v2/apierror"
 )
 
 // APICall is a user defined call stub.

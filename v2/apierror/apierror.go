@@ -159,7 +159,7 @@ func (a *APIError) Error() string {
 			strings.Join(desc, " "), strings.Join(url, " ")))
 	}
 	if a.details.LocalizedMessage != nil {
-		d.WriteString(fmt.Sprintf("error details: name = LocalizedMessge locale = %s msg = %s\n",
+		d.WriteString(fmt.Sprintf("error details: name = LocalizedMessage locale = %s msg = %s\n",
 			a.details.LocalizedMessage.GetLocale(), a.details.LocalizedMessage.GetMessage()))
 	}
 	return strings.TrimSpace(d.String())
@@ -185,7 +185,7 @@ func (a *APIError) Domain() string {
 }
 
 // Metadata returns the metadata in an ErrorInfo.
-// If ErroInfo is nil, it returns nil.
+// If ErrorInfo is nil, it returns nil.
 func (a *APIError) Metadata() map[string]string {
 	return a.details.ErrorInfo.GetMetadata()
 
