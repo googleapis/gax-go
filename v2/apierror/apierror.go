@@ -188,7 +188,7 @@ func (a *APIError) Domain() string {
 	return a.details.ErrorInfo.GetDomain()
 }
 
-// MetaData returns the metadata in an ErrorInfo.
+// Metadata returns the metadata in an ErrorInfo.
 // If ErroInfo is nil, it returns nil.
 func (a *APIError) Metadata() map[string]string {
 	return a.details.ErrorInfo.GetMetadata()
