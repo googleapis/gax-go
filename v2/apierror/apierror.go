@@ -27,10 +27,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-/*
-Package apierror implements a wrapper error for parsing error details from
-API calls. Currently, only errors representing a gRPC status are supported.
-*/
+// Package apierror implements a wrapper error for parsing error details from
+// API calls. Currently, only errors representing a gRPC status are supported.
 package apierror
 
 import (
@@ -167,11 +165,9 @@ func (a *APIError) Error() string {
 	return strings.TrimSpace(d.String())
 }
 
-/*
-GRPCStatus extracts the underlying gRPC Status error.
-This method is necessary to fulfill the interface
-described in https://pkg.go.dev/google.golang.org/grpc/status#FromError.
-*/
+// GRPCStatus extracts the underlying gRPC Status error.
+// This method is necessary to fulfill the interface
+// described in https://pkg.go.dev/google.golang.org/grpc/status#FromError.
 func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
