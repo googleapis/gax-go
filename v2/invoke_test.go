@@ -34,6 +34,13 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/googleapis/gax-go/v2/apierror"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var canceledContext context.Context
@@ -67,6 +74,48 @@ func TestInvokeSuccess(t *testing.T) {
 	if sp != 0 {
 		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
 	}
+}
+
+func TestInvokeCertificateError(t *testing.T) {
+	stat := status.New(codes.Unavailable, "x509: certificate signed by unknown authority")
+	apiErr := stat.Err()
+	apiCall := func(context.Context, CallSettings) error { return apiErr }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
+	if diff := cmp.Diff(err, apiErr, cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("got(-), want(+): \n%s", diff)
+	}
+}
+
+func TestInvokeAPIError(t *testing.T) {
+	qf := &errdetails.QuotaFailure{
+		Violations: []*errdetails.QuotaFailure_Violation{{Subject: "Foo", Description: "Bar"}},
+	}
+	stat, _ := status.New(codes.ResourceExhausted, "Per user quota has been exhausted").WithDetails(qf)
+	apiErr, _ := apierror.FromError(stat.Err())
+	apiCall := func(context.Context, CallSettings) error { return stat.Err() }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
+	if diff := cmp.Diff(err.Error(), apiErr.Error()); diff != "" {
+		t.Errorf("got(-), want(+): \n%s", diff)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
+	}
+}
+
+func TestInvokeCtxError(t *testing.T) {
+	ctxErr := context.DeadlineExceeded
+	apiCall := func(context.Context, CallSettings) error { return ctxErr }
+	var sp recordSleeper
+	err := invoke(context.Background(), apiCall, CallSettings{}, sp.sleep)
+	if err != ctxErr {
+		t.Errorf("found error %s, want %s", err, ctxErr)
+	}
+	if sp != 0 {
+		t.Errorf("slept %d times, should not have slept since the call succeeded", int(sp))
+	}
+
 }
 
 func TestInvokeNoRetry(t *testing.T) {
