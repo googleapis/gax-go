@@ -3,7 +3,7 @@ module github.com/googleapis/gax-go
 go 1.11
 
 require (
-	github.com/golang/protobuf v1.4.3
+	github.com/golang/protobuf v1.5.2
 	github.com/googleapis/gax-go/v2 v2.0.5
 	golang.org/x/exp v0.0.0-20190221220918-438050ddec5e
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
