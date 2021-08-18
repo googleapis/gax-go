@@ -38,6 +38,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -261,6 +262,10 @@ func TestFromError(t *testing.T) {
 	u := []interface{}{msg}
 	uS, _ := status.New(codes.Unknown, "test").WithDetails(msg)
 
+	hae := &googleapi.Error{
+		Details: []interface{}{ei},
+	}
+
 	tests := []struct {
 		apierr *APIError
 		b      bool
@@ -276,6 +281,7 @@ func TestFromError(t *testing.T) {
 		{&APIError{err: hS.Err(), status: hS, details: ErrDetails{Help: hp}}, true},
 		{&APIError{err: lS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, true},
 		{&APIError{err: uS.Err(), status: uS, details: ErrDetails{Unknown: u}}, true},
+		{&APIError{err: hae, httpErr: hae, details: ErrDetails{ErrorInfo: ei}}, true},
 	}
 
 	for _, tc := range tests {

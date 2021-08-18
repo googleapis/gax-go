@@ -4,8 +4,9 @@ go 1.11
 
 require (
 	github.com/google/go-cmp v0.5.6
+	google.golang.org/api v0.54.0
 	google.golang.org/genproto v0.0.0-20210813162853-db860fec028c
-	google.golang.org/grpc v1.39.1
+	google.golang.org/grpc v1.40.0
 	google.golang.org/protobuf v1.27.1
 
 )
