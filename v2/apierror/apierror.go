@@ -170,7 +170,15 @@ func (a *APIError) Unwrap() error {
 
 // Error returns a readable representation of the APIError.
 func (a *APIError) Error() string {
-	return strings.TrimSpace(fmt.Sprintf("%s\n%s", a.err.Error(), a.details))
+	var msg string
+	if a.status != nil {
+		msg = a.err.Error()
+	} else if a.httpErr != nil {
+		// Truncate the googleapi.Error message because it dumps the Details in
+		// an ugly way.
+		msg = fmt.Sprintf("googleapi: Error %d: %s", a.httpErr.Code, a.httpErr.Message)
+	}
+	return strings.TrimSpace(fmt.Sprintf("%s\n%s", msg, a.details))
 }
 
 // GRPCStatus extracts the underlying gRPC Status error.
