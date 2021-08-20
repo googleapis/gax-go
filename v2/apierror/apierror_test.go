@@ -38,12 +38,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	jsonerror "github.com/googleapis/gax-go/v2/apierror/internal/proto"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -262,8 +265,18 @@ func TestFromError(t *testing.T) {
 	u := []interface{}{msg}
 	uS, _ := status.New(codes.Unknown, "test").WithDetails(msg)
 
+	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
+	any, err := anypb.New(httpErrInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
+	data, err := protojson.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
 	hae := &googleapi.Error{
-		Details: []interface{}{ei},
+		Body: string(data),
 	}
 
 	tests := []struct {
@@ -281,7 +294,7 @@ func TestFromError(t *testing.T) {
 		{&APIError{err: hS.Err(), status: hS, details: ErrDetails{Help: hp}}, true},
 		{&APIError{err: lS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, true},
 		{&APIError{err: uS.Err(), status: uS, details: ErrDetails{Unknown: u}}, true},
-		{&APIError{err: hae, httpErr: hae, details: ErrDetails{ErrorInfo: ei}}, true},
+		{&APIError{err: hae, httpErr: hae, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
 	}
 
 	for _, tc := range tests {

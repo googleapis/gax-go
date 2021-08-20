@@ -35,9 +35,11 @@ import (
 	"fmt"
 	"strings"
 
+	jsonerror "github.com/googleapis/gax-go/v2/apierror/internal/proto"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // ErrDetails holds the google/rpc/error_details.proto messages.
@@ -203,7 +205,6 @@ func FromError(err error) (*APIError, bool) {
 		return nil, false
 	}
 
-	var details []interface{}
 	ae := APIError{err: err}
 	st, isStatus := status.FromError(err)
 	herr, isHTTPErr := err.(*googleapi.Error)
@@ -211,40 +212,77 @@ func FromError(err error) (*APIError, bool) {
 	switch {
 	case isStatus:
 		ae.status = st
-		details = st.Details()
+		ae.details = parseDetails(st.Details())
 	case isHTTPErr:
 		ae.httpErr = herr
-		details = herr.Details
+		ae.details = parseHTTPDetails(herr)
 	default:
 		return nil, false
 	}
 
+	return &ae, true
+
+}
+
+// parseDetails accepts a slice of interface{} that should be backed by some
+// sort of proto.Message that can be cast to the google/rpc/error_details.proto
+// types.
+//
+// This is for internal use only.
+func parseDetails(details []interface{}) ErrDetails {
+	var ed ErrDetails
 	for _, d := range details {
 		switch d := d.(type) {
 		case *errdetails.ErrorInfo:
-			ae.details.ErrorInfo = d
+			ed.ErrorInfo = d
 		case *errdetails.BadRequest:
-			ae.details.BadRequest = d
+			ed.BadRequest = d
 		case *errdetails.PreconditionFailure:
-			ae.details.PreconditionFailure = d
+			ed.PreconditionFailure = d
 		case *errdetails.QuotaFailure:
-			ae.details.QuotaFailure = d
+			ed.QuotaFailure = d
 		case *errdetails.RetryInfo:
-			ae.details.RetryInfo = d
+			ed.RetryInfo = d
 		case *errdetails.ResourceInfo:
-			ae.details.ResourceInfo = d
+			ed.ResourceInfo = d
 		case *errdetails.RequestInfo:
-			ae.details.RequestInfo = d
+			ed.RequestInfo = d
 		case *errdetails.DebugInfo:
-			ae.details.DebugInfo = d
+			ed.DebugInfo = d
 		case *errdetails.Help:
-			ae.details.Help = d
+			ed.Help = d
 		case *errdetails.LocalizedMessage:
-			ae.details.LocalizedMessage = d
+			ed.LocalizedMessage = d
 		default:
-			ae.details.Unknown = append(ae.details.Unknown, d)
+			ed.Unknown = append(ed.Unknown, d)
 		}
 	}
-	return &ae, true
 
+	return ed
+}
+
+// parseHTTPDetails will convert the given googleapi.Error into the protobuf
+// representation then parse the Any values that contain the error details.
+//
+// This is for internal use only.
+func parseHTTPDetails(gae *googleapi.Error) ErrDetails {
+	e := &jsonerror.Error{}
+	if err := protojson.Unmarshal([]byte(gae.Body), e); err != nil {
+		// If the error body does not conform to the error schema, ignore it
+		// altogther. See https://cloud.google.com/apis/design/errors#http_mapping.
+		return ErrDetails{}
+	}
+
+	// Coerce the Any messages into proto.Message then parse the details.
+	details := []interface{}{}
+	for _, any := range e.GetError().GetDetails() {
+		m, err := any.UnmarshalNew()
+		if err != nil {
+			// Ignore malformed Any values.
+			continue
+		}
+		details = append(details, m)
+	}
+
+	return parseDetails(details)
 }
