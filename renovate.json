@@ -10,6 +10,7 @@
     ],
     "commitMessagePrefix": "chore(all): ",
     "commitMessageAction": "update",
+    "labels": ["automerge"],
     "force": {
         "constraints": {
           "go": "1.17"
