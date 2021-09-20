@@ -10,13 +10,6 @@ if [[ $(go version) != *"go1.17"* ]]; then
   exit 0
 fi
 
-go install \
-  github.com/golang/protobuf/proto \
-  github.com/golang/protobuf/protoc-gen-go \
-  golang.org/x/lint/golint \
-  golang.org/x/tools/cmd/goimports \
-  honnef.co/go/tools/cmd/staticcheck
-
 # Look at all .go files (ignoring .pb.go files) and make sure they have a Copyright. Fail if any don't.
 find . -type f -name "*.go" ! -name "*.pb.go" -exec grep -L "\(Copyright [0-9]\{4,\}\)" {} \; 2>&1 | tee /dev/stderr | (! read)
 
