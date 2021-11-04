@@ -23,5 +23,5 @@ This library requires Go 1.6 or above.
 
 License
 =======
-BSD - please see [LICENSE](https://github.com/googleapis/gax-go/blob/master/LICENSE)
+BSD - please see [LICENSE](https://github.com/googleapis/gax-go/blob/main/LICENSE)
 for more information.

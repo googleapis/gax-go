@@ -3,7 +3,7 @@
 1. Determine the current release version with `git tag -l`. It should look
    something like `vX.Y.Z`. We'll call the current version `$CV` and the new
    version `$NV`.
-1. On master, run `git log $CV..` to list all the changes since the last
+1. On main, run `git log $CV..` to list all the changes since the last
    release.
    a. NOTE: Some commits may pertain to only v1 or v2. Manually introspect
    each commit to figure which occurred in v1.
@@ -11,7 +11,7 @@
 1. Mail the CL containing the `CHANGES.md` changes. When the CL is approved,
    submit it.
 1. Without submitting any other CLs:
-   a. Switch to master.
+   a. Switch to main.
    b. `git pull`
    c. Tag the repo with the next version: `git tag $NV`. It should be of the
    form `v1.Y.Z`.
