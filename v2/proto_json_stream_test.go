@@ -31,7 +31,6 @@ package gax
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -58,7 +57,7 @@ func TestProtoJSONStreamRecv(t *testing.T) {
 	}
 	data := []byte("[" + string(first) + ",\n" + string(second) + "]")
 	r := ioutil.NopCloser(bytes.NewReader(data))
-	stream := NewProtoJSONStream(context.Background(), r, loc.ProtoReflect().Type())
+	stream := NewProtoJSONStream(r, loc.ProtoReflect().Type())
 
 	m, err := stream.Recv()
 	if err != nil {

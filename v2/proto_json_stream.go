@@ -30,7 +30,6 @@
 package gax
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,9 +55,8 @@ type ProtoJSONStream interface {
 // NewProtoJSONStream accepts a stream of bytes via an io.ReadCloser that are
 // protobuf-JSON encoded protobuf messages of the given type. The ProtoJSONStream
 // must be closed when done.
-func NewProtoJSONStream(ctx context.Context, rc io.ReadCloser, typ protoreflect.MessageType) ProtoJSONStream {
+func NewProtoJSONStream(rc io.ReadCloser, typ protoreflect.MessageType) ProtoJSONStream {
 	return &protoJSONStream{
-		ctx:    ctx,
 		first:  true,
 		reader: rc,
 		stream: json.NewDecoder(rc),
@@ -67,7 +65,6 @@ func NewProtoJSONStream(ctx context.Context, rc io.ReadCloser, typ protoreflect.
 }
 
 type protoJSONStream struct {
-	ctx    context.Context
 	first  bool
 	reader io.ReadCloser
 	stream *json.Decoder
