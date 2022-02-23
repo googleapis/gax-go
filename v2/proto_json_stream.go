@@ -44,19 +44,21 @@ var (
 	arrayClose = json.Delim(']')
 )
 
-// ProtoJSONStream represents an interface for consuming a stream of protobuf
+// ProtoJSONStream represents a wrapper for consuming a stream of protobuf
 // messages encoded using protobuf-JSON format. More information on this format
 // can be found at https://developers.google.com/protocol-buffers/docs/proto3#json.
-type ProtoJSONStream interface {
-	Recv() (proto.Message, error)
-	Close() error
+type ProtoJSONStream struct {
+	first  bool
+	reader io.ReadCloser
+	stream *json.Decoder
+	typ    protoreflect.MessageType
 }
 
 // NewProtoJSONStream accepts a stream of bytes via an io.ReadCloser that are
 // protobuf-JSON encoded protobuf messages of the given type. The ProtoJSONStream
 // must be closed when done.
-func NewProtoJSONStream(rc io.ReadCloser, typ protoreflect.MessageType) ProtoJSONStream {
-	return &protoJSONStream{
+func NewProtoJSONStream(rc io.ReadCloser, typ protoreflect.MessageType) *ProtoJSONStream {
+	return &ProtoJSONStream{
 		first:  true,
 		reader: rc,
 		stream: json.NewDecoder(rc),
@@ -64,18 +66,12 @@ func NewProtoJSONStream(rc io.ReadCloser, typ protoreflect.MessageType) ProtoJSO
 	}
 }
 
-type protoJSONStream struct {
-	first  bool
-	reader io.ReadCloser
-	stream *json.Decoder
-	typ    protoreflect.MessageType
-}
-
 // Recv decodes the next protobuf message in the stream or returns io.EOF if
-// the stream is done. It is no safe to call Recv on the same stream from
+// the stream is done. It is not safe to call Recv on the same stream from
 // different goroutines, just like it is not safe to do so with a single gRPC
-// stream.
-func (s *protoJSONStream) Recv() (proto.Message, error) {
+// stream. Type-cast the protobuf message returned to the type provided at
+// ProtoJSONStream creation.
+func (s *ProtoJSONStream) Recv() (proto.Message, error) {
 	if s.first {
 		s.first = false
 
@@ -109,6 +105,6 @@ func (s *protoJSONStream) Recv() (proto.Message, error) {
 }
 
 // Close closes the stream so that resources are cleaned up.
-func (s *protoJSONStream) Close() error {
+func (s *ProtoJSONStream) Close() error {
 	return s.reader.Close()
 }
