@@ -32,6 +32,7 @@ package gax
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -39,51 +40,76 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// ProtoJsonStream represents an interface for consuming a stream of protobuf
+var (
+	arrayOpen  = json.Delim('[')
+	arrayClose = json.Delim(']')
+)
+
+// ProtoJSONStream represents an interface for consuming a stream of protobuf
 // messages encoded using protobuf-JSON format. More information on this format
 // can be found at https://developers.google.com/protocol-buffers/docs/proto3#json.
-type ProtoJsonStream interface {
+type ProtoJSONStream interface {
 	Recv() (proto.Message, error)
 	Close() error
 }
 
-// NewProtoJsonStream accepts a stream of bytes via an io.ReadCloser that are
-// protobuf-JSON encoded protobuf messages of the given type. The ProtoJsonStream
+// NewProtoJSONStream accepts a stream of bytes via an io.ReadCloser that are
+// protobuf-JSON encoded protobuf messages of the given type. The ProtoJSONStream
 // must be closed when done.
-func NewProtoJsonStream(ctx context.Context, rc io.ReadCloser, typ protoreflect.MessageType) ProtoJsonStream {
-	return &protoJsonStream{
+func NewProtoJSONStream(ctx context.Context, rc io.ReadCloser, typ protoreflect.MessageType) ProtoJSONStream {
+	return &protoJSONStream{
 		ctx:    ctx,
+		first:  true,
 		reader: rc,
 		stream: json.NewDecoder(rc),
 		typ:    typ,
 	}
 }
 
-type protoJsonStream struct {
+type protoJSONStream struct {
 	ctx    context.Context
+	first  bool
 	reader io.ReadCloser
 	stream *json.Decoder
 	typ    protoreflect.MessageType
 }
 
 // Recv decodes the next protobuf message in the stream or returns io.EOF if
-// the stream is done.
-func (s *protoJsonStream) Recv() (proto.Message, error) {
-	// Capture the next data for the item (a JSON object) in the stream.
+// the stream is done. It is no safe to call Recv on the same stream from
+// different goroutines, just like it is not safe to do so with a single gRPC
+// stream.
+func (s *protoJSONStream) Recv() (proto.Message, error) {
+	if s.first {
+		s.first = false
+
+		// Consume the opening '[' and indicate we have a proper opening.
+		if t, err := s.stream.Token(); err != nil {
+			return nil, err
+		} else if t != arrayOpen {
+			return nil, fmt.Errorf("unexpected token %s, expected %s", t, arrayOpen)
+		}
+	}
+
+	// Capture the next block of data for the item (a JSON object) in the stream.
 	var raw json.RawMessage
 	if err := s.stream.Decode(&raw); err != nil {
+		// Check if the closing ']' was reached, but return the original error
+		// if it wasn't and there was a legit error or io.EOF.
+		if t, _ := s.stream.Token(); t == arrayClose {
+			return nil, io.EOF
+		}
 		return nil, err
 	}
+
 	// Initialize a new instance of the protobuf message to unmarshal the
 	// raw data into.
 	m := s.typ.New().Interface()
-	if err := protojson.Unmarshal(raw, m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	err := protojson.Unmarshal(raw, m)
+
+	return m, err
 }
 
 // Close closes the stream so that resources are cleaned up.
-func (s *protoJsonStream) Close() error {
+func (s *protoJSONStream) Close() error {
 	return s.reader.Close()
 }
