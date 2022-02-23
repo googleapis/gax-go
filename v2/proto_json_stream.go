@@ -79,7 +79,7 @@ func (s *protoJSONStream) Recv() (proto.Message, error) {
 	if s.first {
 		s.first = false
 
-		// Consume the opening '[' and indicate we have a proper opening.
+		// Consume the opening '[' so Decode gets one object at a time.
 		if t, err := s.stream.Token(); err != nil {
 			return nil, err
 		} else if t != arrayOpen {
@@ -90,8 +90,10 @@ func (s *protoJSONStream) Recv() (proto.Message, error) {
 	// Capture the next block of data for the item (a JSON object) in the stream.
 	var raw json.RawMessage
 	if err := s.stream.Decode(&raw); err != nil {
-		// Check if the closing ']' was reached, but return the original error
-		// if it wasn't and there was a legit error or io.EOF.
+		// To avoid checking the first token of each stream, just attempt to
+		// Decode the next token and if that fails, double check if it is jsut
+		// the closing ']'. If it is the closing, return io.EOF. If it isn't,
+		// return the original error.
 		if t, _ := s.stream.Token(); t == arrayClose {
 			return nil, io.EOF
 		}
