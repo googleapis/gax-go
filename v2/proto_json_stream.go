@@ -39,11 +39,17 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+// ProtoJsonStream represents an interface for consuming a stream of protobuf
+// messages encoded using protobuf-JSON format. More information on this format
+// can be found at https://developers.google.com/protocol-buffers/docs/proto3#json.
 type ProtoJsonStream interface {
 	Recv() (proto.Message, error)
 	Close() error
 }
 
+// NewProtoJsonStream accepts a stream of bytes via an io.ReadCloser that are
+// protobuf-JSON encoded protobuf messages of the given type. The ProtoJsonStream
+// must be closed when done.
 func NewProtoJsonStream(ctx context.Context, rc io.ReadCloser, typ protoreflect.MessageType) ProtoJsonStream {
 	return &protoJsonStream{
 		ctx:    ctx,
@@ -60,11 +66,16 @@ type protoJsonStream struct {
 	typ    protoreflect.MessageType
 }
 
+// Recv decodes the next protobuf message in the stream or returns io.EOF if
+// the stream is done.
 func (s *protoJsonStream) Recv() (proto.Message, error) {
+	// Capture the next data for the item (a JSON object) in the stream.
 	var raw json.RawMessage
 	if err := s.stream.Decode(&raw); err != nil {
 		return nil, err
 	}
+	// Initialize a new instance of the protobuf message to unmarshal the
+	// raw data into.
 	m := s.typ.New().Interface()
 	if err := protojson.Unmarshal(raw, m); err != nil {
 		return nil, err
@@ -72,6 +83,7 @@ func (s *protoJsonStream) Recv() (proto.Message, error) {
 	return m, nil
 }
 
+// Close closes the stream so that resources are cleaned up.
 func (s *protoJsonStream) Close() error {
 	return s.reader.Close()
 }
