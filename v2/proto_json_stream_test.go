@@ -35,21 +35,52 @@ import (
 	"io"
 	"io/ioutil"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	locationpb "google.golang.org/genproto/googleapis/cloud/location"
+	"google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func TestProtoJSONStreamRecv(t *testing.T) {
-	loc := &locationpb.Location{
-		Name:        "projects/example-project/locations/us-east1",
-		LocationId:  "us-east1",
-		DisplayName: "New York City",
+	locations := []proto.Message{
+		&locationpb.Location{
+			Name:        "projects/example-project/locations/us-east1",
+			LocationId:  "us-east1",
+			DisplayName: "South Carolina",
+		},
+		&locationpb.Location{
+			Name:        "projects/example-project/locations/us-west1",
+			LocationId:  "us-west1",
+			DisplayName: "Oregon",
+		},
+		&locationpb.Location{
+			Name:        "projects/example-project/locations/us-central1",
+			LocationId:  "us-central1",
+			DisplayName: "Iowa",
+		},
 	}
-	locations := []proto.Message{loc, loc, loc}
+
+	durations := []proto.Message{
+		durationpb.New(time.Second),
+		durationpb.New(time.Minute),
+		durationpb.New(time.Hour),
+	}
+
+	md, _ := anypb.New(locations[0])
+
+	nested := []proto.Message{
+		&longrunning.Operation{
+			Name:     "foo",
+			Done:     true,
+			Metadata: md,
+		},
+	}
 
 	for _, tst := range []struct {
 		name    string
@@ -58,14 +89,27 @@ func TestProtoJSONStreamRecv(t *testing.T) {
 		typ     protoreflect.MessageType
 	}{
 		{
+			name:    "empty",
+			wantErr: io.EOF,
+		},
+		{
 			name:    "simple_locations",
 			want:    locations,
 			wantErr: io.EOF,
-			typ:     loc.ProtoReflect().Type(),
+			typ:     locations[0].ProtoReflect().Type(),
 		},
 		{
-			name:    "empty",
+			// google.type.Duration is JSON encoded as a string, not an object.
+			name:    "message_as_primitive",
+			want:    durations,
 			wantErr: io.EOF,
+			typ:     durations[0].ProtoReflect().Type(),
+		},
+		{
+			name:    "nested",
+			want:    nested,
+			wantErr: io.EOF,
+			typ:     nested[0].ProtoReflect().Type(),
 		},
 	} {
 		s, err := prepareStream(tst.want)

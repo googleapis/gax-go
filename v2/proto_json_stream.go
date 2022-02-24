@@ -47,6 +47,8 @@ var (
 // ProtoJSONStream represents a wrapper for consuming a stream of protobuf
 // messages encoded using protobuf-JSON format. More information on this format
 // can be found at https://developers.google.com/protocol-buffers/docs/proto3#json.
+// The stream must appear as a comma-delimited, JSON array of obbjects with
+// opening and closing square braces.
 type ProtoJSONStream struct {
 	first  bool
 	reader io.ReadCloser
