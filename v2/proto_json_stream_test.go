@@ -102,9 +102,8 @@ func prepareStream(messages []proto.Message) (io.ReadCloser, error) {
 		}
 		data = append(data, d...)
 		data = append(data, ',')
-		data = append(data, '\n')
 	}
 	// Set the trailing ',' to a closing ']'.
-	data[len(data)-2] = ']'
+	data[len(data)-1] = ']'
 	return ioutil.NopCloser(bytes.NewReader(data)), nil
 }
