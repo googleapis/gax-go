@@ -31,6 +31,7 @@ package gax
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -39,6 +40,7 @@ import (
 	locationpb "google.golang.org/genproto/googleapis/cloud/location"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestProtoJSONStreamRecv(t *testing.T) {
@@ -47,45 +49,62 @@ func TestProtoJSONStreamRecv(t *testing.T) {
 		LocationId:  "us-east1",
 		DisplayName: "New York City",
 	}
-	first, err := protojson.Marshal(loc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := protojson.Marshal(loc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := []byte("[" + string(first) + ",\n" + string(second) + "]")
-	r := ioutil.NopCloser(bytes.NewReader(data))
-	stream := NewProtoJSONStream(r, loc.ProtoReflect().Type())
+	locations := []proto.Message{loc, loc, loc}
 
-	m, err := stream.Recv()
-	if err != nil {
-		t.Fatal(err)
+	for _, tst := range []struct {
+		name    string
+		want    []proto.Message
+		wantErr error
+		typ     protoreflect.MessageType
+	}{
+		{
+			name:    "simple_locations",
+			want:    locations,
+			wantErr: io.EOF,
+			typ:     loc.ProtoReflect().Type(),
+		},
+		{
+			name:    "empty",
+			wantErr: io.EOF,
+		},
+	} {
+		s, err := prepareStream(tst.want)
+		if err != nil {
+			t.Errorf("%s: %v", tst.name, err)
+			continue
+		}
+		stream := NewProtoJSONStream(s, tst.typ)
+		defer stream.Close()
+
+		got, err := stream.Recv()
+		for ndx := 0; err == nil; ndx++ {
+			if diff := cmp.Diff(got, tst.want[ndx], cmp.Comparer(proto.Equal)); diff != "" {
+				t.Errorf("%s: got(-),want(+):\n%s", tst.name, diff)
+			}
+			got, err = stream.Recv()
+		}
+		if !errors.Is(err, tst.wantErr) {
+			t.Errorf("%s: expected %s but got %v", tst.name, tst.wantErr, err)
+		}
+	}
+}
+
+func prepareStream(messages []proto.Message) (io.ReadCloser, error) {
+	if len(messages) == 0 {
+		return ioutil.NopCloser(bytes.NewReader([]byte("[]"))), nil
 	}
 
-	got, ok := m.(*locationpb.Location)
-	if !ok {
-		t.Fatalf("Expected Location, got %s", m.ProtoReflect().Type().Descriptor().Name())
+	data := []byte("[")
+	for _, m := range messages {
+		d, err := protojson.Marshal(m)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, d...)
+		data = append(data, ',')
+		data = append(data, '\n')
 	}
-	if diff := cmp.Diff(got, loc, cmp.Comparer(proto.Equal)); diff != "" {
-		t.Errorf("got(-),want(+):\n%s", diff)
-	}
-
-	m, err = stream.Recv()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	got, ok = m.(*locationpb.Location)
-	if !ok {
-		t.Fatalf("Expected Location, got %s", m.ProtoReflect().Type().Descriptor().Name())
-	}
-	if diff := cmp.Diff(got, loc, cmp.Comparer(proto.Equal)); diff != "" {
-		t.Errorf("got(-),want(+):\n%s", diff)
-	}
-
-	if _, err := stream.Recv(); err != io.EOF {
-		t.Errorf("expected io.EOF but got %v", err)
-	}
+	// Set the trailing ',' to a closing ']'.
+	data[len(data)-2] = ']'
+	return ioutil.NopCloser(bytes.NewReader(data)), nil
 }
