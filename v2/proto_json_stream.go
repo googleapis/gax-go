@@ -31,7 +31,7 @@ package gax
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -40,8 +40,9 @@ import (
 )
 
 var (
-	arrayOpen  = json.Delim('[')
-	arrayClose = json.Delim(']')
+	arrayOpen     = json.Delim('[')
+	arrayClose    = json.Delim(']')
+	errBadOpening = errors.New("unexpected opening token, expected '['")
 )
 
 // ProtoJSONStream represents a wrapper for consuming a stream of protobuf
@@ -56,10 +57,10 @@ type ProtoJSONStream struct {
 	typ    protoreflect.MessageType
 }
 
-// NewProtoJSONStream accepts a stream of bytes via an io.ReadCloser that are
+// NewProtoJSONStreamReader accepts a stream of bytes via an io.ReadCloser that are
 // protobuf-JSON encoded protobuf messages of the given type. The ProtoJSONStream
 // must be closed when done.
-func NewProtoJSONStream(rc io.ReadCloser, typ protoreflect.MessageType) *ProtoJSONStream {
+func NewProtoJSONStreamReader(rc io.ReadCloser, typ protoreflect.MessageType) *ProtoJSONStream {
 	return &ProtoJSONStream{
 		first:  true,
 		reader: rc,
@@ -81,7 +82,7 @@ func (s *ProtoJSONStream) Recv() (proto.Message, error) {
 		if t, err := s.stream.Token(); err != nil {
 			return nil, err
 		} else if t != arrayOpen {
-			return nil, fmt.Errorf("unexpected token %s, expected %s", t, arrayOpen)
+			return nil, errBadOpening
 		}
 	}
 

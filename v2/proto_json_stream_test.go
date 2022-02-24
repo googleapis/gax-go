@@ -47,7 +47,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-func TestProtoJSONStreamRecv(t *testing.T) {
+func TestRecv(t *testing.T) {
 	locations := []proto.Message{
 		&locationpb.Location{
 			Name:        "projects/example-project/locations/us-east1",
@@ -83,33 +83,28 @@ func TestProtoJSONStreamRecv(t *testing.T) {
 	}
 
 	for _, tst := range []struct {
-		name    string
-		want    []proto.Message
-		wantErr error
-		typ     protoreflect.MessageType
+		name string
+		want []proto.Message
+		typ  protoreflect.MessageType
 	}{
 		{
-			name:    "empty",
-			wantErr: io.EOF,
+			name: "empty",
 		},
 		{
-			name:    "simple_locations",
-			want:    locations,
-			wantErr: io.EOF,
-			typ:     locations[0].ProtoReflect().Type(),
+			name: "simple_locations",
+			want: locations,
+			typ:  locations[0].ProtoReflect().Type(),
 		},
 		{
 			// google.type.Duration is JSON encoded as a string, not an object.
-			name:    "message_as_primitive",
-			want:    durations,
-			wantErr: io.EOF,
-			typ:     durations[0].ProtoReflect().Type(),
+			name: "message_as_primitive",
+			want: durations,
+			typ:  durations[0].ProtoReflect().Type(),
 		},
 		{
-			name:    "nested",
-			want:    nested,
-			wantErr: io.EOF,
-			typ:     nested[0].ProtoReflect().Type(),
+			name: "nested",
+			want: nested,
+			typ:  nested[0].ProtoReflect().Type(),
 		},
 	} {
 		s, err := prepareStream(tst.want)
@@ -117,7 +112,7 @@ func TestProtoJSONStreamRecv(t *testing.T) {
 			t.Errorf("%s: %v", tst.name, err)
 			continue
 		}
-		stream := NewProtoJSONStream(s, tst.typ)
+		stream := NewProtoJSONStreamReader(s, tst.typ)
 		defer stream.Close()
 
 		got, err := stream.Recv()
@@ -127,9 +122,17 @@ func TestProtoJSONStreamRecv(t *testing.T) {
 			}
 			got, err = stream.Recv()
 		}
-		if !errors.Is(err, tst.wantErr) {
-			t.Errorf("%s: expected %s but got %v", tst.name, tst.wantErr, err)
+		if !errors.Is(err, io.EOF) {
+			t.Errorf("%s: expected %v but got %v", tst.name, io.EOF, err)
 		}
+	}
+}
+
+func TestRecvError(t *testing.T) {
+	noOpening := ioutil.NopCloser(bytes.NewReader([]byte{'{'}))
+	s := NewProtoJSONStreamReader(noOpening, nil)
+	if _, err := s.Recv(); !errors.Is(err, errBadOpening) {
+		t.Errorf("Expected %v but got %v", errBadOpening, err)
 	}
 }
 
