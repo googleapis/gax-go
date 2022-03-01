@@ -128,6 +128,21 @@ func TestRecv(t *testing.T) {
 	}
 }
 
+func TestRecvAfterClose(t *testing.T) {
+	empty := ioutil.NopCloser(bytes.NewReader([]byte("[]")))
+	s := NewProtoJSONStreamReader(empty, nil)
+	if _, err := s.Recv(); !errors.Is(err, io.EOF) {
+		t.Errorf("Expected %v but got %v", io.EOF, err)
+	}
+
+	// Close to ensure reader is closed.
+	s.Close()
+	if _, err := s.Recv(); !errors.Is(err, io.EOF) {
+		t.Errorf("Expected %v after close but got %v", io.EOF, err)
+	}
+
+}
+
 func TestRecvError(t *testing.T) {
 	noOpening := ioutil.NopCloser(bytes.NewReader([]byte{'{'}))
 	s := NewProtoJSONStreamReader(noOpening, nil)

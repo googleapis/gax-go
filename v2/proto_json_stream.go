@@ -51,10 +51,10 @@ var (
 // The stream must appear as a comma-delimited, JSON array of obbjects with
 // opening and closing square braces.
 type ProtoJSONStream struct {
-	first  bool
-	reader io.ReadCloser
-	stream *json.Decoder
-	typ    protoreflect.MessageType
+	first, closed bool
+	reader        io.ReadCloser
+	stream        *json.Decoder
+	typ           protoreflect.MessageType
 }
 
 // NewProtoJSONStreamReader accepts a stream of bytes via an io.ReadCloser that are
@@ -74,7 +74,11 @@ func NewProtoJSONStreamReader(rc io.ReadCloser, typ protoreflect.MessageType) *P
 // different goroutines, just like it is not safe to do so with a single gRPC
 // stream. Type-cast the protobuf message returned to the type provided at
 // ProtoJSONStream creation.
+// Calls to Recv after calling Close will produce io.EOF.
 func (s *ProtoJSONStream) Recv() (proto.Message, error) {
+	if s.closed {
+		return nil, io.EOF
+	}
 	if s.first {
 		s.first = false
 
@@ -89,14 +93,15 @@ func (s *ProtoJSONStream) Recv() (proto.Message, error) {
 	// Capture the next block of data for the item (a JSON object) in the stream.
 	var raw json.RawMessage
 	if err := s.stream.Decode(&raw); err != nil {
+		e := err
 		// To avoid checking the first token of each stream, just attempt to
-		// Decode the next token and if that fails, double check if it is jsut
-		// the closing ']'. If it is the closing, return io.EOF. If it isn't,
-		// return the original error.
+		// Decode the next blob and if that fails, double check if it is just
+		// the closing token ']'. If it is the closing, return io.EOF. If it
+		// isn't, return the original error.
 		if t, _ := s.stream.Token(); t == arrayClose {
-			return nil, io.EOF
+			e = io.EOF
 		}
-		return nil, err
+		return nil, e
 	}
 
 	// Initialize a new instance of the protobuf message to unmarshal the
@@ -109,5 +114,9 @@ func (s *ProtoJSONStream) Recv() (proto.Message, error) {
 
 // Close closes the stream so that resources are cleaned up.
 func (s *ProtoJSONStream) Close() error {
+	// Dereference the *json.Decoder so that the memory is gc'd.
+	s.stream = nil
+	s.closed = true
+
 	return s.reader.Close()
 }
