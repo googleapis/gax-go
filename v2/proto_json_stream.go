@@ -50,6 +50,8 @@ var (
 // can be found at https://developers.google.com/protocol-buffers/docs/proto3#json.
 // The stream must appear as a comma-delimited, JSON array of obbjects with
 // opening and closing square braces.
+//
+// This is for internal use only.
 type ProtoJSONStream struct {
 	first, closed bool
 	reader        io.ReadCloser
@@ -60,6 +62,8 @@ type ProtoJSONStream struct {
 // NewProtoJSONStreamReader accepts a stream of bytes via an io.ReadCloser that are
 // protobuf-JSON encoded protobuf messages of the given type. The ProtoJSONStream
 // must be closed when done.
+//
+// This is for internal use only.
 func NewProtoJSONStreamReader(rc io.ReadCloser, typ protoreflect.MessageType) *ProtoJSONStream {
 	return &ProtoJSONStream{
 		first:  true,
