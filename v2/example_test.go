@@ -31,12 +31,15 @@ package gax_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Some result that the client might return.
@@ -188,4 +191,31 @@ func ExampleBackoff() {
 		// TODO: handle err
 	}
 	_ = resp // TODO: use resp if err is nil
+}
+
+func ExampleProtoJSONStream() {
+	var someHTTPCall func() (http.Response, error)
+
+	res, err := someHTTPCall()
+	if err != nil {
+		// TODO: handle err
+	}
+
+	// The type of message expected in the stream.
+	var typ protoreflect.MessageType = (&structpb.Struct{}).ProtoReflect().Type()
+
+	stream := gax.NewProtoJSONStreamReader(res.Body, typ)
+	defer stream.Close()
+
+	for {
+		m, err := stream.Recv()
+		if err != nil {
+			break
+		}
+		// TODO: use resp
+		_ = m.(*structpb.Struct)
+	}
+	if err != io.EOF {
+		// TODO: handle err
+	}
 }
