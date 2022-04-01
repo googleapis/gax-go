@@ -31,6 +31,7 @@ package gax
 
 import (
 	"math/rand"
+	"net/http"
 	"time"
 
 	"google.golang.org/grpc"
@@ -178,6 +179,21 @@ func WithGRPCOptions(opt ...grpc.CallOption) CallOption {
 	return grpcOpt(append([]grpc.CallOption(nil), opt...))
 }
 
+type headerOpt struct {
+	h http.Header
+}
+
+func (o headerOpt) Resolve(s *CallSettings) {
+	s.Header = o.h
+}
+
+// Header returns a CallOption that retrieves the response header for an APICall.
+func Header(h http.Header) CallOption {
+	return headerOpt{
+		h: h,
+	}
+}
+
 // CallSettings allow fine-grained control over how calls are made.
 type CallSettings struct {
 	// Retry returns a Retryer to be used to control retry logic of a method call.
@@ -186,4 +202,8 @@ type CallSettings struct {
 
 	// CallOptions to be forwarded to GRPC.
 	GRPC []grpc.CallOption
+
+	// Header is the container in which response headers of an APICall should
+	// be captured.
+	Header http.Header
 }
