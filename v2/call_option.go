@@ -31,7 +31,6 @@ package gax
 
 import (
 	"math/rand"
-	"net/url"
 	"time"
 
 	"google.golang.org/grpc"
@@ -174,17 +173,19 @@ func (o grpcOpt) Resolve(s *CallSettings) {
 	s.GRPC = o
 }
 
-type urlOpt struct {
-	u *url.URL
+type pathOpt struct {
+	p string
 }
 
-func (u urlOpt) Resolve(s *CallSettings) {
-	s.URL = u.u
+func (p pathOpt) Resolve(s *CallSettings) {
+	s.Path = p.p
 }
 
-// WithURL applies a URL override to the HTTP-based APICall.
-func WithURL(u *url.URL) CallOption {
-	return &urlOpt{u: u}
+// WithPath applies a Path override to the HTTP-based APICall.
+//
+// This is for internal use only.
+func WithPath(p string) CallOption {
+	return &pathOpt{p: p}
 }
 
 // WithGRPCOptions allows passing gRPC call options during client creation.
@@ -201,6 +202,6 @@ type CallSettings struct {
 	// CallOptions to be forwarded to GRPC.
 	GRPC []grpc.CallOption
 
-	// URL is an HTTP URL override for an APICall.
-	URL *url.URL
+	// Path is an HTTP override for an APICall.
+	Path string
 }
