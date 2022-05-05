@@ -123,7 +123,7 @@ func TestOnHTTPCodes(t *testing.T) {
 		{[]int{http.StatusBadGateway}, true},
 	}
 	for _, tst := range tests {
-		b := OnHTTPCodes(tst.c, Backoff{})
+		b := OnHTTPCodes(Backoff{}, tst.c...)
 		if _, retry := b.Retry(apiErr); retry != tst.retry {
 			t.Errorf("retriable codes: %v, error: %s, retry: %t, want %t", tst.c, apiErr, retry, tst.retry)
 		}

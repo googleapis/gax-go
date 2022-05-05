@@ -149,11 +149,11 @@ func ExampleOnHTTPCodes() {
 	ctx := context.Background()
 	c := &fakeClient{}
 
-	retryer := gax.OnHTTPCodes([]int{http.StatusBadGateway, http.StatusServiceUnavailable}, gax.Backoff{
+	retryer := gax.OnHTTPCodes(gax.Backoff{
 		Initial:    time.Second,
 		Max:        32 * time.Second,
 		Multiplier: 2,
-	})
+	}, http.StatusBadGateway, http.StatusServiceUnavailable)
 
 	performSomeRPCWithRetry := func(ctx context.Context) (*fakeResponse, error) {
 		for {

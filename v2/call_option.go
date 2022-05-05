@@ -126,16 +126,21 @@ func (r *boRetryer) Retry(err error) (time.Duration, bool) {
 // cc. Pause times between retries are specified by bo.
 //
 // bo is only used for its parameters; each Retryer has its own copy.
-func OnHTTPCodes(cc []int, bo Backoff) Retryer {
+func OnHTTPCodes(bo Backoff, cc ...int) Retryer {
+	codes := make(map[int]bool, len(cc))
+	for _, c := range cc {
+		codes[c] = true
+	}
+
 	return &httpRetryer{
 		backoff: bo,
-		codes:   append([]int(nil), cc...),
+		codes:   codes,
 	}
 }
 
 type httpRetryer struct {
 	backoff Backoff
-	codes   []int
+	codes   map[int]bool
 }
 
 func (r *httpRetryer) Retry(err error) (time.Duration, bool) {
@@ -144,12 +149,10 @@ func (r *httpRetryer) Retry(err error) (time.Duration, bool) {
 		return 0, false
 	}
 
-	c := gerr.Code
-	for _, rc := range r.codes {
-		if c == rc {
-			return r.backoff.Pause(), true
-		}
+	if r.codes[gerr.Code] {
+		return r.backoff.Pause(), true
 	}
+
 	return 0, false
 }
 
