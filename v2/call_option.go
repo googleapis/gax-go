@@ -30,9 +30,11 @@
 package gax
 
 import (
+	"errors"
 	"math/rand"
 	"time"
 
+	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -111,6 +113,38 @@ func (r *boRetryer) Retry(err error) (time.Duration, bool) {
 		return 0, false
 	}
 	c := st.Code()
+	for _, rc := range r.codes {
+		if c == rc {
+			return r.backoff.Pause(), true
+		}
+	}
+	return 0, false
+}
+
+// OnHTTPCodes returns a Retryer that retries if and only if
+// the previous attempt returns a googleapi.Error whose status code is stored in
+// cc. Pause times between retries are specified by bo.
+//
+// bo is only used for its parameters; each Retryer has its own copy.
+func OnHTTPCodes(cc []int, bo Backoff) Retryer {
+	return &httpRetryer{
+		backoff: bo,
+		codes:   append([]int(nil), cc...),
+	}
+}
+
+type httpRetryer struct {
+	backoff Backoff
+	codes   []int
+}
+
+func (r *httpRetryer) Retry(err error) (time.Duration, bool) {
+	var gerr *googleapi.Error
+	if !errors.As(err, &gerr) {
+		return 0, false
+	}
+
+	c := gerr.Code
 	for _, rc := range r.codes {
 		if c == rc {
 			return r.backoff.Pause(), true

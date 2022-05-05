@@ -31,9 +31,11 @@ package gax
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
+	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -105,6 +107,25 @@ func TestOnErrorFunc(t *testing.T) {
 		b := OnErrorFunc(Backoff{}, tst.shouldRetry)
 		if _, retry := b.Retry(tst.e); retry != tst.retry {
 			t.Errorf("retriable func: error: %s, retry: %t, want %t", tst.e, retry, tst.retry)
+		}
+	}
+}
+
+func TestOnHTTPCodes(t *testing.T) {
+	apiErr := &googleapi.Error{Code: http.StatusBadGateway}
+	tests := []struct {
+		c     []int
+		retry bool
+	}{
+		{nil, false},
+		{[]int{http.StatusConflict}, false},
+		{[]int{http.StatusConflict, http.StatusBadGateway}, true},
+		{[]int{http.StatusBadGateway}, true},
+	}
+	for _, tst := range tests {
+		b := OnHTTPCodes(tst.c, Backoff{})
+		if _, retry := b.Retry(apiErr); retry != tst.retry {
+			t.Errorf("retriable codes: %v, error: %s, retry: %t, want %t", tst.c, apiErr, retry, tst.retry)
 		}
 	}
 }
