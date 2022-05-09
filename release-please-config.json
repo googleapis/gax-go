@@ -5,6 +5,15 @@
     "packages": {
         "v2": {
             "component": "v2"
+        },
+        "undefined": {
+            "releaseType": "go-yoshi",
+            "draft": false,
+            "prerelease": false,
+            "bumpMinorPreMajor": false,
+            "bumpPatchForMinorPreMajor": false,
+            "changelogPath": "CHANGELOG.md",
+            "versioning": "default"
         }
     }
 }
