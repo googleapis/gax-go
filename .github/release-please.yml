@@ -1,9 +1,4 @@
 handleGHRelease: true
 manifest: true
-
-branches:
-  - branch: main
-    handleGHRelease: true
-    manifest: true
-    manifestFile: v2/.release-please-manifest.json
-    manifestConfig: v2/release-please-config.json
+manifestFile: v2/.release-please-manifest.json
+manifestConfig: v2/release-please-config.json
