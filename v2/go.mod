@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/google/go-cmp v0.5.8
 	google.golang.org/api v0.86.0
-	google.golang.org/genproto v0.0.0-20220630174209-ad1d48641aa7
+	google.golang.org/genproto v0.0.0-20220708155623-50e5f4832e73
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
 
