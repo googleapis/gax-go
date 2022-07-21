@@ -62,7 +62,7 @@ type ErrDetails struct {
 }
 
 // ExtractMessage provides a mechanism for extracting messages from the Unknown
-// error details.  An Unknown entry matching the type of exampleMesg is returned
+// error details.  An entry matching the type of exampleMesg is returned
 // if present.
 func (e ErrDetails) ExtractMessage(exampleMesg interface{}) interface{} {
 	if exampleMesg == nil {
