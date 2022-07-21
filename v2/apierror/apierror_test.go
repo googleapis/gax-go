@@ -49,9 +49,6 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
-
-	// The BigQuery Storage API has an example of a custom error type.
-	storagepb "google.golang.org/genproto/googleapis/cloud/bigquery/storage/v1"
 )
 
 var update = flag.Bool("update", false, "update golden files")
@@ -75,8 +72,8 @@ func TestDetails(t *testing.T) {
 
 func TestDetails_ExtractMessage(t *testing.T) {
 
-	customError := &storagepb.StorageError{
-		Code:         storagepb.StorageError_TABLE_NOT_FOUND,
+	customError := &jsonerror.CustomError{
+		Code:         jsonerror.CustomError_UNIVERSE_WAS_DESTROYED,
 		Entity:       "some entity",
 		ErrorMessage: "custom error message",
 	}
@@ -108,20 +105,7 @@ func TestDetails_ExtractMessage(t *testing.T) {
 				)
 				return s
 			}(),
-			extract: &storagepb.StorageError{},
-			want:    customError,
-		},
-		{
-			description: "multiple details w/custom error",
-			src: func() *status.Status {
-				s, _ := status.New(codes.Unknown, "unknown error").WithDetails(
-					&storagepb.TableSchema{},
-					&storagepb.WriteStream{},
-					customError,
-				)
-				return s
-			}(),
-			extract: &storagepb.StorageError{},
+			extract: &jsonerror.CustomError{},
 			want:    customError,
 		},
 	}
