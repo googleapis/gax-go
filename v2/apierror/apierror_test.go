@@ -45,9 +45,13 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	// The BigQuery Storage API has an example of a custom error type.
+	storagepb "google.golang.org/genproto/googleapis/cloud/bigquery/storage/v1"
 )
 
 var update = flag.Bool("update", false, "update golden files")
@@ -66,6 +70,71 @@ func TestDetails(t *testing.T) {
 	want := ErrDetails{QuotaFailure: qf}
 	if diff := cmp.Diff(got, want, cmp.Comparer(proto.Equal)); diff != "" {
 		t.Errorf("got(-), want(+):\n%s", diff)
+	}
+}
+
+func TestDetails_ExtractMessage(t *testing.T) {
+
+	customError := &storagepb.StorageError{
+		Code:         storagepb.StorageError_TABLE_NOT_FOUND,
+		Entity:       "some entity",
+		ErrorMessage: "custom error message",
+	}
+
+	testCases := []struct {
+		description string
+		src         *status.Status
+		extract     interface{}
+		want        interface{}
+	}{
+		{
+			description: "nil",
+			src:         status.New(codes.Unimplemented, "unimp"),
+		},
+		{
+			description: "nil extractor",
+			src: func() *status.Status {
+				s, _ := status.New(codes.Unauthenticated, "who are you").WithDetails(
+					&descriptorpb.DescriptorProto{},
+				)
+				return s
+			}(),
+		},
+		{
+			description: "custom error",
+			src: func() *status.Status {
+				s, _ := status.New(codes.Unknown, "unknown error").WithDetails(
+					customError,
+				)
+				return s
+			}(),
+			extract: &storagepb.StorageError{},
+			want:    customError,
+		},
+		{
+			description: "multiple details w/custom error",
+			src: func() *status.Status {
+				s, _ := status.New(codes.Unknown, "unknown error").WithDetails(
+					&storagepb.TableSchema{},
+					&storagepb.WriteStream{},
+					customError,
+				)
+				return s
+			}(),
+			extract: &storagepb.StorageError{},
+			want:    customError,
+		},
+	}
+	for _, tc := range testCases {
+
+		apiErr, ok := FromError(tc.src.Err())
+		if !ok {
+			t.Errorf("%s: FromError failure", tc.description)
+		}
+		got := apiErr.Details().ExtractMessage(tc.extract)
+		if diff := cmp.Diff(got, tc.want, protocmp.Transform()); diff != "" {
+			t.Errorf("%s: got(-), want(+):\n%s", tc.description, diff)
+		}
 	}
 }
 func TestUnwrap(t *testing.T) {

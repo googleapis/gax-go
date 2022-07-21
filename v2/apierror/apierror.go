@@ -34,6 +34,7 @@ package apierror
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	jsonerror "github.com/googleapis/gax-go/v2/apierror/internal/proto"
@@ -58,6 +59,22 @@ type ErrDetails struct {
 
 	// Unknown stores unidentifiable error details.
 	Unknown []interface{}
+}
+
+// ExtractMessage provides a mechanism for extracting messages from the Unknown
+// error details.  An Unknown errors matching the type of exampleMesg is returned.
+func (e ErrDetails) ExtractMessage(exampleMesg interface{}) interface{} {
+	if exampleMesg == nil {
+		return nil
+	}
+	typ := reflect.TypeOf(exampleMesg)
+	for _, elem := range e.Unknown {
+		elemType := reflect.TypeOf(elem)
+		if typ == elemType {
+			return elem
+		}
+	}
+	return nil
 }
 
 func (e ErrDetails) String() string {
