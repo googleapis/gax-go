@@ -76,7 +76,7 @@ var ErrInvalidArgument = errors.New("invalid argument")
 // found, and ErrInvalidArgument if the type of v is not a suitable pointer type.
 func (e ErrDetails) ExtractMessage(v interface{}) error {
 	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return ErrInvalidArgument
 	}
 	targetType := rv.Type()
@@ -84,7 +84,7 @@ func (e ErrDetails) ExtractMessage(v interface{}) error {
 		elemType := reflect.TypeOf(elem)
 		if targetType == elemType {
 			elemval := reflect.ValueOf(elem)
-			if elemval.Kind() == reflect.Pointer {
+			if elemval.Kind() == reflect.Ptr {
 				rv.Elem().Set(elemval.Elem())
 				return nil
 			}
