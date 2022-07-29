@@ -31,6 +31,7 @@ package apierror
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io/ioutil"
 	"path/filepath"
@@ -83,22 +84,37 @@ func TestDetails_ExtractMessage(t *testing.T) {
 		src         *status.Status
 		extract     interface{}
 		want        interface{}
+		wantErr     error
 	}{
 		{
-			description: "nil",
+			description: "no details",
 			src:         status.New(codes.Unimplemented, "unimp"),
+			extract:     &jsonerror.CustomError{},
+			wantErr:     ErrMessageNotFound,
 		},
 		{
-			description: "nil extractor",
+			description: "nil argument",
 			src: func() *status.Status {
 				s, _ := status.New(codes.Unauthenticated, "who are you").WithDetails(
 					&descriptorpb.DescriptorProto{},
 				)
 				return s
 			}(),
+			wantErr: ErrInvalidArgument,
 		},
 		{
-			description: "custom error",
+			description: "non-pointer argument",
+			src: func() *status.Status {
+				s, _ := status.New(codes.Unknown, "unknown error").WithDetails(
+					customError,
+				)
+				return s
+			}(),
+			extract: jsonerror.CustomError{},
+			wantErr: ErrInvalidArgument,
+		},
+		{
+			description: "custom error success",
 			src: func() *status.Status {
 				s, _ := status.New(codes.Unknown, "unknown error").WithDetails(
 					customError,
@@ -115,9 +131,19 @@ func TestDetails_ExtractMessage(t *testing.T) {
 		if !ok {
 			t.Errorf("%s: FromError failure", tc.description)
 		}
-		got := apiErr.Details().ExtractMessage(tc.extract)
-		if diff := cmp.Diff(got, tc.want, protocmp.Transform()); diff != "" {
-			t.Errorf("%s: got(-), want(+):\n%s", tc.description, diff)
+		val := tc.extract
+		gotErr := apiErr.Details().ExtractMessage(val)
+		if tc.wantErr != nil {
+			if !errors.Is(gotErr, tc.wantErr) {
+				t.Errorf("%s: got error %v, wanted error %v", tc.description, gotErr, tc.wantErr)
+			}
+		} else {
+			if gotErr != nil {
+				t.Errorf("%s: got error %v", tc.description, gotErr)
+			}
+			if diff := cmp.Diff(val, tc.want, protocmp.Transform()); diff != "" {
+				t.Errorf("%s: got(-), want(+):\n%s", tc.description, diff)
+			}
 		}
 	}
 }

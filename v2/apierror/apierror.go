@@ -61,21 +61,33 @@ type ErrDetails struct {
 	Unknown []interface{}
 }
 
+var ErrMessageNotFound = errors.New("message not found")
+var ErrInvalidArgument = errors.New("invalid argument")
+
 // ExtractMessage provides a mechanism for extracting messages from the Unknown
-// error details.  An entry matching the type of exampleMesg is returned
-// if present.
-func (e ErrDetails) ExtractMessage(exampleMesg interface{}) interface{} {
-	if exampleMesg == nil {
-		return nil
+// error details.  If ExtractMessage finds an unknown message of the same type,
+// the value pointed to by v is updated to the found message.
+//
+// ExtractMessage will return ErrMessageNotFound if the desired message is not
+// found, and ErrInvalidArgument if the type of v is not a suitable pointer type.
+func (e ErrDetails) ExtractMessage(v interface{}) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return ErrInvalidArgument
 	}
-	typ := reflect.TypeOf(exampleMesg)
+	targetType := rv.Type()
 	for _, elem := range e.Unknown {
 		elemType := reflect.TypeOf(elem)
-		if typ == elemType {
-			return elem
+		if targetType == elemType {
+			elemval := reflect.ValueOf(elem)
+			if elemval.Kind() == reflect.Pointer {
+				rv.Elem().Set(elemval.Elem())
+				return nil
+			}
+			return fmt.Errorf("failed to extract message")
 		}
 	}
-	return nil
+	return ErrMessageNotFound
 }
 
 func (e ErrDetails) String() string {
