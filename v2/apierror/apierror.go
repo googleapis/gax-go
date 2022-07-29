@@ -61,7 +61,11 @@ type ErrDetails struct {
 	Unknown []interface{}
 }
 
+// ErrMessageNotFound is used to signal ExtractMessage found no matching messages.
 var ErrMessageNotFound = errors.New("message not found")
+
+// ErrInvalidArgument is used to signal that ExtractMessage was not passed an appropriate
+// pointer type.
 var ErrInvalidArgument = errors.New("invalid argument")
 
 // ExtractMessage provides a mechanism for extracting messages from the Unknown
