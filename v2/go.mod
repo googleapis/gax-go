@@ -4,10 +4,10 @@ go 1.18
 
 require (
 	github.com/google/go-cmp v0.5.8
-	google.golang.org/api v0.88.0
+	google.golang.org/api v0.90.0
 	google.golang.org/genproto v0.0.0-20220722212130-b98a9ff5e252
 	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.28.1
 
 )
 
