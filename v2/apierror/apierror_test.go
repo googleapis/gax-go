@@ -71,7 +71,7 @@ func TestDetails(t *testing.T) {
 	}
 }
 
-func TestDetails_ExtractMessage(t *testing.T) {
+func TestDetails_ExtractProtoMessage(t *testing.T) {
 
 	customError := &jsonerror.CustomError{
 		Code:         jsonerror.CustomError_UNIVERSE_WAS_DESTROYED,
@@ -82,7 +82,7 @@ func TestDetails_ExtractMessage(t *testing.T) {
 	testCases := []struct {
 		description string
 		src         *status.Status
-		extract     interface{}
+		extract     proto.Message
 		want        interface{}
 		wantErr     error
 	}{
@@ -100,18 +100,7 @@ func TestDetails_ExtractMessage(t *testing.T) {
 				)
 				return s
 			}(),
-			wantErr: ErrInvalidArgument,
-		},
-		{
-			description: "non-pointer argument",
-			src: func() *status.Status {
-				s, _ := status.New(codes.Unknown, "unknown error").WithDetails(
-					customError,
-				)
-				return s
-			}(),
-			extract: jsonerror.CustomError{},
-			wantErr: ErrInvalidArgument,
+			wantErr: ErrMessageNotFound,
 		},
 		{
 			description: "custom error success",
@@ -132,7 +121,7 @@ func TestDetails_ExtractMessage(t *testing.T) {
 			t.Errorf("%s: FromError failure", tc.description)
 		}
 		val := tc.extract
-		gotErr := apiErr.Details().ExtractMessage(val)
+		gotErr := apiErr.Details().ExtractProtoMessage(val)
 		if tc.wantErr != nil {
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Errorf("%s: got error %v, wanted error %v", tc.description, gotErr, tc.wantErr)

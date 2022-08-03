@@ -34,7 +34,6 @@ package apierror
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 
 	jsonerror "github.com/googleapis/gax-go/v2/apierror/internal/proto"
@@ -42,6 +41,7 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // ErrDetails holds the google/rpc/error_details.proto messages.
@@ -64,31 +64,22 @@ type ErrDetails struct {
 // ErrMessageNotFound is used to signal ExtractMessage found no matching messages.
 var ErrMessageNotFound = errors.New("message not found")
 
-// ErrInvalidArgument is used to signal that ExtractMessage was not passed an appropriate
-// pointer type.
-var ErrInvalidArgument = errors.New("invalid argument")
-
-// ExtractMessage provides a mechanism for extracting messages from the Unknown
-// error details.  If ExtractMessage finds an unknown message of the same type,
-// the value pointed to by v is updated to the found message.
+// ExtractProtoMessage provides a mechanism for extracting protobuf messages from the
+// Unknown error details.  If ExtractMessage finds an unknown message of the same type,
+// the content of the message is copied to the provided message.
 //
-// ExtractMessage will return ErrMessageNotFound if the desired message is not
-// found, and ErrInvalidArgument if the type of v is not a suitable pointer type.
-func (e ErrDetails) ExtractMessage(v interface{}) error {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return ErrInvalidArgument
+// ExtractMessage will return ErrMessageNotFound if there are no message matching the
+// protocol buffer type of the provided message.
+func (e ErrDetails) ExtractProtoMessage(v proto.Message) error {
+	if v == nil {
+		return ErrMessageNotFound
 	}
-	targetType := rv.Type()
 	for _, elem := range e.Unknown {
-		elemType := reflect.TypeOf(elem)
-		if targetType == elemType {
-			elemval := reflect.ValueOf(elem)
-			if elemval.Kind() == reflect.Ptr {
-				rv.Elem().Set(elemval.Elem())
+		if elemProto, ok := elem.(proto.Message); ok {
+			if v.ProtoReflect().Type() == elemProto.ProtoReflect().Type() {
+				proto.Merge(v, elemProto)
 				return nil
 			}
-			return fmt.Errorf("failed to extract message")
 		}
 	}
 	return ErrMessageNotFound
