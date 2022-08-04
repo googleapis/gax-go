@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ option go_package = "github.com/googleapis/gax-go/v2/apierror/internal/proto;jso
 
 
 // CustomError is an example of a custom error message  which may be included
-// in an rpc status.  It is not meant to reflect a standard error.
+// in an rpc status. It is not meant to reflect a standard error.
 message CustomError {
 
-  // Error code for `StorageError`.
+  // Error code for `CustomError`.
   enum CustomErrorCode {
     // Default error.
     CUSTOM_ERROR_CODE_UNSPECIFIED = 0;

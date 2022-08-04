@@ -1,4 +1,4 @@
-// Copyright 2021 Google LLC
+// Copyright 2022 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Error code for `StorageError`.
+// Error code for `CustomError`.
 type CustomError_CustomErrorCode int32
 
 const (
@@ -93,7 +93,7 @@ func (CustomError_CustomErrorCode) EnumDescriptor() ([]byte, []int) {
 }
 
 // CustomError is an example of a custom error message  which may be included
-// in an rpc status.  It is not meant to reflect a standard error.
+// in an rpc status. It is not meant to reflect a standard error.
 type CustomError struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

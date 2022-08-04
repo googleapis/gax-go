@@ -65,7 +65,7 @@ type ErrDetails struct {
 var ErrMessageNotFound = errors.New("message not found")
 
 // ExtractProtoMessage provides a mechanism for extracting protobuf messages from the
-// Unknown error details.  If ExtractProtoMessage finds an unknown message of the same type,
+// Unknown error details. If ExtractProtoMessage finds an unknown message of the same type,
 // the content of the message is copied to the provided message.
 //
 // ExtractProtoMessage will return ErrMessageNotFound if there are no message matching the
