@@ -31,6 +31,7 @@ package apierror
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io/ioutil"
 	"path/filepath"
@@ -45,6 +46,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -66,6 +68,72 @@ func TestDetails(t *testing.T) {
 	want := ErrDetails{QuotaFailure: qf}
 	if diff := cmp.Diff(got, want, cmp.Comparer(proto.Equal)); diff != "" {
 		t.Errorf("got(-), want(+):\n%s", diff)
+	}
+}
+
+func TestDetails_ExtractProtoMessage(t *testing.T) {
+
+	customError := &jsonerror.CustomError{
+		Code:         jsonerror.CustomError_UNIVERSE_WAS_DESTROYED,
+		Entity:       "some entity",
+		ErrorMessage: "custom error message",
+	}
+
+	testCases := []struct {
+		description string
+		src         *status.Status
+		extract     proto.Message
+		want        interface{}
+		wantErr     error
+	}{
+		{
+			description: "no details",
+			src:         status.New(codes.Unimplemented, "unimp"),
+			extract:     &jsonerror.CustomError{},
+			wantErr:     ErrMessageNotFound,
+		},
+		{
+			description: "nil argument",
+			src: func() *status.Status {
+				s, _ := status.New(codes.Unauthenticated, "who are you").WithDetails(
+					&descriptorpb.DescriptorProto{},
+				)
+				return s
+			}(),
+			wantErr: ErrMessageNotFound,
+		},
+		{
+			description: "custom error success",
+			src: func() *status.Status {
+				s, _ := status.New(codes.Unknown, "unknown error").WithDetails(
+					customError,
+				)
+				return s
+			}(),
+			extract: &jsonerror.CustomError{},
+			want:    customError,
+		},
+	}
+	for _, tc := range testCases {
+
+		apiErr, ok := FromError(tc.src.Err())
+		if !ok {
+			t.Errorf("%s: FromError failure", tc.description)
+		}
+		val := tc.extract
+		gotErr := apiErr.Details().ExtractProtoMessage(val)
+		if tc.wantErr != nil {
+			if !errors.Is(gotErr, tc.wantErr) {
+				t.Errorf("%s: got error %v, wanted error %v", tc.description, gotErr, tc.wantErr)
+			}
+		} else {
+			if gotErr != nil {
+				t.Errorf("%s: got error %v", tc.description, gotErr)
+			}
+			if diff := cmp.Diff(val, tc.want, protocmp.Transform()); diff != "" {
+				t.Errorf("%s: got(-), want(+):\n%s", tc.description, diff)
+			}
+		}
 	}
 }
 func TestUnwrap(t *testing.T) {
