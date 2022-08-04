@@ -61,14 +61,14 @@ type ErrDetails struct {
 	Unknown []interface{}
 }
 
-// ErrMessageNotFound is used to signal ExtractMessage found no matching messages.
+// ErrMessageNotFound is used to signal ExtractProtoMessage found no matching messages.
 var ErrMessageNotFound = errors.New("message not found")
 
 // ExtractProtoMessage provides a mechanism for extracting protobuf messages from the
-// Unknown error details.  If ExtractMessage finds an unknown message of the same type,
+// Unknown error details.  If ExtractProtoMessage finds an unknown message of the same type,
 // the content of the message is copied to the provided message.
 //
-// ExtractMessage will return ErrMessageNotFound if there are no message matching the
+// ExtractProtoMessage will return ErrMessageNotFound if there are no message matching the
 // protocol buffer type of the provided message.
 func (e ErrDetails) ExtractProtoMessage(v proto.Message) error {
 	if v == nil {
