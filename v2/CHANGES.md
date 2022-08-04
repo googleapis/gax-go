@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/googleapis/gax-go/compare/v2.4.0...v2.5.0) (2022-08-04)
+
+
+### Features
+
+* add ExtractProtoMessage to apierror ([#213](https://github.com/googleapis/gax-go/issues/213)) ([a6ce70c](https://github.com/googleapis/gax-go/commit/a6ce70c725c890533a9de6272d3b5ba2e336d6bb))
+
 ## [2.4.0](https://github.com/googleapis/gax-go/compare/v2.3.0...v2.4.0) (2022-05-09)
 
 
