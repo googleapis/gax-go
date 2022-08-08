@@ -1,9 +1,9 @@
 module github.com/googleapis/gax-go
 
-go 1.18
+go 1.19
 
 require (
-	github.com/googleapis/gax-go/v2 v2.4.0
+	github.com/googleapis/gax-go/v2 v2.5.1
 	google.golang.org/grpc v1.48.0
 )
 
