@@ -1,11 +1,11 @@
 module github.com/googleapis/gax-go/v2
 
-go 1.18
+go 1.19
 
 require (
 	github.com/google/go-cmp v0.5.8
-	google.golang.org/api v0.91.0
-	google.golang.org/genproto v0.0.0-20220808131553-a91ffa7f803e
+	google.golang.org/api v0.92.0
+	google.golang.org/genproto 37a418bb8959
 	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.1
 
