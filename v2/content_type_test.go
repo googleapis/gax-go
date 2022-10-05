@@ -32,6 +32,7 @@ package gax
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"reflect"
 	"testing"
 )
@@ -113,7 +114,7 @@ func TestContentSniffing(t *testing.T) {
 		sct := newContentSniffer(er)
 
 		// Even if was an error during the first 512 bytes, we should still be able to read those bytes.
-		buf, err := io.ReadAll(sct)
+		buf, err := ioutil.ReadAll(sct)
 
 		if !reflect.DeepEqual(buf, tc.data) {
 			t.Fatalf("Failed reading buffer: got: %q; want:%q", buf, tc.data)
@@ -169,7 +170,7 @@ func TestDetermineContentType(t *testing.T) {
 		},
 	} {
 		r, ctype := DetermineContentType(tc.r, tc.explicitConentType)
-		got, err := io.ReadAll(r)
+		got, err := ioutil.ReadAll(r)
 		if err != nil {
 			t.Fatalf("Failed reading buffer: %v", err)
 		}
