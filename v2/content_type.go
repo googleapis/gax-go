@@ -90,16 +90,14 @@ func (cs *contentSniffer) ContentType() (string, bool) {
 }
 
 // DetermineContentType determines the content type of the supplied reader.
-// If the content type is already known, it can be specified via ctype.
+// If ctype is not empty, because the content type is already available, media and ctype
+// will be returned without modification. This is useful to avoid an external check of ctype.
 // Otherwise, the content of media will be sniffed to determine the content type.
 // If media implements googleapi.ContentTyper (deprecated), this will be used
 // instead of sniffing the content.
 // After calling DetectContentType the caller must not perform further reads on
 // media, but rather read from the Reader that is returned.
 func DetermineContentType(media io.Reader, ctype string) (io.Reader, string) {
-	// Note: callers could avoid calling DetectContentType if ctype != "",
-	// but doing the check inside this function reduces the amount of
-	// generated code.
 	if ctype != "" {
 		return media, ctype
 	}
