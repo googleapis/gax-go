@@ -32,8 +32,6 @@ package gax
 import (
 	"io"
 	"net/http"
-
-	"google.golang.org/api/googleapi"
 )
 
 const sniffBuffSize = 512
@@ -107,7 +105,10 @@ func DetermineContentType(media io.Reader, ctype string) (io.Reader, string) {
 
 	// For backwards compatibility, allow clients to set content
 	// type by providing a ContentTyper for media.
-	if typer, ok := media.(googleapi.ContentTyper); ok {
+	// Note: This is an anonymous interface definition copied from googleapi.ContentTyper.
+	if typer, ok := media.(interface {
+		ContentType() string
+	}); ok {
 		return media, typer.ContentType()
 	}
 
