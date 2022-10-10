@@ -149,9 +149,8 @@ func TestDetermineContentType(t *testing.T) {
 	}
 
 	type testCase struct {
-		r                  io.Reader
-		explicitConentType string
-		wantContentType    string
+		r               io.Reader
+		wantContentType string
 	}
 
 	for _, tc := range []testCase{
@@ -163,13 +162,8 @@ func TestDetermineContentType(t *testing.T) {
 			r:               staticContentTyper{rdr()},
 			wantContentType: "static content type",
 		},
-		{
-			r:                  staticContentTyper{rdr()},
-			explicitConentType: "explicit",
-			wantContentType:    "explicit",
-		},
 	} {
-		r, ctype := DetermineContentType(tc.r, tc.explicitConentType)
+		r, ctype := DetermineContentType(tc.r)
 		got, err := ioutil.ReadAll(r)
 		if err != nil {
 			t.Fatalf("Failed reading buffer: %v", err)
