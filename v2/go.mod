@@ -4,9 +4,9 @@ go 1.19
 
 require (
 	github.com/google/go-cmp v0.5.9
-	google.golang.org/api v0.97.0
-	google.golang.org/genproto v0.0.0-20220927151529-dcaddaf36704
-	google.golang.org/grpc v1.49.0
+	google.golang.org/api v0.98.0
+	google.golang.org/genproto v0.0.0-20221010155953-15ba04fc1c0e
+	google.golang.org/grpc v1.50.0
 	google.golang.org/protobuf v1.28.1
 
 )
