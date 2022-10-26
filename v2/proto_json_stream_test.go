@@ -38,7 +38,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	locationpb "google.golang.org/genproto/googleapis/cloud/location"
+	serviceconfigpb "google.golang.org/genproto/googleapis/api/serviceconfig"
 	"google.golang.org/genproto/googleapis/longrunning"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -49,20 +49,20 @@ import (
 
 func TestRecv(t *testing.T) {
 	locations := []proto.Message{
-		&locationpb.Location{
-			Name:        "projects/example-project/locations/us-east1",
-			LocationId:  "us-east1",
-			DisplayName: "South Carolina",
+		&serviceconfigpb.Property{
+			Name:        "property1",
+			Type:        serviceconfigpb.Property_STRING,
+			Description: "Property 1",
 		},
-		&locationpb.Location{
-			Name:        "projects/example-project/locations/us-west1",
-			LocationId:  "us-west1",
-			DisplayName: "Oregon",
+		&serviceconfigpb.Property{
+			Name:        "property2",
+			Type:        serviceconfigpb.Property_STRING,
+			Description: "Property 2",
 		},
-		&locationpb.Location{
-			Name:        "projects/example-project/locations/us-central1",
-			LocationId:  "us-central1",
-			DisplayName: "Iowa",
+		&serviceconfigpb.Property{
+			Name:        "property3",
+			Type:        serviceconfigpb.Property_STRING,
+			Description: "Property 3",
 		},
 	}
 
