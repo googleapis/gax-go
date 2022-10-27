@@ -233,6 +233,27 @@ func (a *APIError) Metadata() map[string]string {
 
 }
 
+// setDetailsFromError parses a Status error or a googleapi.Error
+// and sets status and details or httpErr and details, respectively.
+// It returns false if neither Status nor googleapi.Error can be parsed.
+func (a *APIError) setDetailsFromError(err error) bool {
+	st, isStatus := status.FromError(err)
+	var herr *googleapi.Error
+	isHTTPErr := errors.As(err, &herr)
+
+	switch {
+	case isStatus:
+		a.status = st
+		a.details = parseDetails(st.Details())
+	case isHTTPErr:
+		a.httpErr = herr
+		a.details = parseHTTPDetails(herr)
+	default:
+		return false
+	}
+	return true
+}
+
 // FromError parses a Status error or a googleapi.Error and builds an APIError.
 func FromError(err error) (*APIError, bool) {
 	if err == nil {
@@ -240,23 +261,26 @@ func FromError(err error) (*APIError, bool) {
 	}
 
 	ae := APIError{err: err}
-	st, isStatus := status.FromError(err)
-	var herr *googleapi.Error
-	isHTTPErr := errors.As(err, &herr)
+	if !ae.setDetailsFromError(err) {
+		return nil, false
+	}
+	return &ae, true
+}
 
-	switch {
-	case isStatus:
-		ae.status = st
-		ae.details = parseDetails(st.Details())
-	case isHTTPErr:
-		ae.httpErr = herr
-		ae.details = parseHTTPDetails(herr)
-	default:
+// FromWrappingError parses a Status error or a googleapi.Error and
+// builds an APIError, but to avoid a cycle when the provided error
+// will externally wrap the new APIError, it does not set err in the
+// new APIError.
+func FromWrappingError(err error) (*APIError, bool) {
+	if err == nil {
 		return nil, false
 	}
 
+	ae := APIError{}
+	if !ae.setDetailsFromError(err) {
+		return nil, false
+	}
 	return &ae, true
-
 }
 
 // parseDetails accepts a slice of interface{} that should be backed by some

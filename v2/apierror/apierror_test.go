@@ -363,21 +363,24 @@ func TestFromError(t *testing.T) {
 		{&APIError{err: lS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, true},
 		{&APIError{err: uS.Err(), status: uS, details: ErrDetails{Unknown: u}}, true},
 		{&APIError{err: hae, httpErr: hae, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
+		{&APIError{err: errors.New("standard error")}, false},
 	}
 
 	for _, tc := range tests {
 		got, apiB := FromError(tc.apierr.err)
 		if tc.b != apiB {
-			t.Errorf("got %v, want %v", apiB, tc.b)
+			t.Errorf("FromError(%s): got %v, want %v", tc.apierr.err, apiB, tc.b)
 		}
-		if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
-			t.Errorf("got(-), want(+),: \n%s", diff)
-		}
-		if diff := cmp.Diff(got.status, tc.apierr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
-			t.Errorf("got(-), want(+),: \n%s", diff)
-		}
-		if diff := cmp.Diff(got.err, tc.apierr.err, cmpopts.EquateErrors()); diff != "" {
-			t.Errorf("got(-), want(+),: \n%s", diff)
+		if tc.b {
+			if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
+				t.Errorf("got(-), want(+),: \n%s", diff)
+			}
+			if diff := cmp.Diff(got.status, tc.apierr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
+				t.Errorf("got(-), want(+),: \n%s", diff)
+			}
+			if diff := cmp.Diff(got.err, tc.apierr.err, cmpopts.EquateErrors()); diff != "" {
+				t.Errorf("got(-), want(+),: \n%s", diff)
+			}
 		}
 	}
 	if err, _ := FromError(nil); err != nil {
@@ -385,6 +388,58 @@ func TestFromError(t *testing.T) {
 	}
 
 	if c, _ := FromError(context.DeadlineExceeded); c != nil {
+		t.Errorf("got %s, want nil", c)
+	}
+}
+
+func TestFromWrappingError(t *testing.T) {
+	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
+	any, err := anypb.New(httpErrInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
+	data, err := protojson.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hae := &googleapi.Error{
+		Body: string(data),
+	}
+
+	se := errors.New("standard error")
+
+	tests := []struct {
+		source error
+		apierr *APIError
+		b      bool
+	}{
+		{hae, &APIError{httpErr: hae, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
+		{se, &APIError{err: se}, false},
+	}
+
+	for _, tc := range tests {
+		got, apiB := FromWrappingError(tc.source)
+		if tc.b != apiB {
+			t.Errorf("FromWrappingError(%s): got %v, want %v", tc.apierr, apiB, tc.b)
+		}
+		if tc.b {
+			if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
+				t.Errorf("got(-), want(+),: \n%s", diff)
+			}
+			if diff := cmp.Diff(got.status, tc.apierr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
+				t.Errorf("got(-), want(+),: \n%s", diff)
+			}
+			if got.err != nil {
+				t.Errorf("got %s, want nil", got.err)
+			}
+		}
+	}
+	if err, _ := FromWrappingError(nil); err != nil {
+		t.Errorf("got %s, want nil", err)
+	}
+
+	if c, _ := FromWrappingError(context.DeadlineExceeded); c != nil {
 		t.Errorf("got %s, want nil", c)
 	}
 }
