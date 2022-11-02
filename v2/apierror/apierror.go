@@ -254,14 +254,16 @@ func (a *APIError) setDetailsFromError(err error) bool {
 	return true
 }
 
-// FromError parses a Status error or a googleapi.Error and builds an APIError.
+// FromError parses a Status error or a googleapi.Error and builds an
+// APIError, wrapping the provided error in the new APIError. It
+// returns false if neither Status nor googleapi.Error can be parsed.
 func FromError(err error) (*APIError, bool) {
 	return ParseError(err, true)
 }
 
-// ParseError parses a Status error or a googleapi.Error and
-// builds an APIError. If wrap is true, it sets err in the
-// new APIError.
+// ParseError parses a Status error or a googleapi.Error and builds an
+// APIError. If wrap is true, it wraps the error in the new APIError.
+// It returns false if neither Status nor googleapi.Error can be parsed.
 func ParseError(err error, wrap bool) (*APIError, bool) {
 	if err == nil {
 		return nil, false
