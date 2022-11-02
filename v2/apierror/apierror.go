@@ -261,9 +261,7 @@ func FromError(err error) (*APIError, bool) {
 
 // ParseError parses a Status error or a googleapi.Error and
 // builds an APIError. If wrap is true, it sets err in the
-// new APIError. If wrap is false, it does not set err, in order
-// to avoid a cycle when the provided error will externally wrap
-// the new APIError.
+// new APIError.
 func ParseError(err error, wrap bool) (*APIError, bool) {
 	if err == nil {
 		return nil, false
