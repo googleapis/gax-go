@@ -392,7 +392,7 @@ func TestFromError(t *testing.T) {
 	}
 }
 
-func TestFromWrappingError(t *testing.T) {
+func TestParseError(t *testing.T) {
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
 	any, err := anypb.New(httpErrInfo)
 	if err != nil {
@@ -419,9 +419,10 @@ func TestFromWrappingError(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, apiB := FromWrappingError(tc.source)
+		// ParseError with wrap = true is covered by TestFromError, above.
+		got, apiB := ParseError(tc.source, false)
 		if tc.b != apiB {
-			t.Errorf("FromWrappingError(%s): got %v, want %v", tc.apierr, apiB, tc.b)
+			t.Errorf("ParseError(%s, false): got %v, want %v", tc.apierr, apiB, tc.b)
 		}
 		if tc.b {
 			if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
@@ -435,11 +436,11 @@ func TestFromWrappingError(t *testing.T) {
 			}
 		}
 	}
-	if err, _ := FromWrappingError(nil); err != nil {
+	if err, _ := ParseError(nil, false); err != nil {
 		t.Errorf("got %s, want nil", err)
 	}
 
-	if c, _ := FromWrappingError(context.DeadlineExceeded); c != nil {
+	if c, _ := ParseError(context.DeadlineExceeded, false); c != nil {
 		t.Errorf("got %s, want nil", c)
 	}
 }

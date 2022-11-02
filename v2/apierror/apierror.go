@@ -256,27 +256,22 @@ func (a *APIError) setDetailsFromError(err error) bool {
 
 // FromError parses a Status error or a googleapi.Error and builds an APIError.
 func FromError(err error) (*APIError, bool) {
-	if err == nil {
-		return nil, false
-	}
-
-	ae := APIError{err: err}
-	if !ae.setDetailsFromError(err) {
-		return nil, false
-	}
-	return &ae, true
+	return ParseError(err, true)
 }
 
-// FromWrappingError parses a Status error or a googleapi.Error and
-// builds an APIError, but to avoid a cycle when the provided error
-// will externally wrap the new APIError, it does not set err in the
-// new APIError.
-func FromWrappingError(err error) (*APIError, bool) {
+// ParseError parses a Status error or a googleapi.Error and
+// builds an APIError. If wrap is true, it sets err in the
+// new APIError. If wrap is false, it does not set err, in order
+// to avoid a cycle when the provided error will externally wrap
+// the new APIError.
+func ParseError(err error, wrap bool) (*APIError, bool) {
 	if err == nil {
 		return nil, false
 	}
-
 	ae := APIError{}
+	if wrap {
+		ae = APIError{err: err}
+	}
 	if !ae.setDetailsFromError(err) {
 		return nil, false
 	}
