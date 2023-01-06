@@ -10,6 +10,7 @@
     ],
     "commitMessagePrefix": "chore(all): ",
     "commitMessageAction": "update",
+    "labels": ["automerge"],
     "groupName": "all",
     "ignoreDeps": [],
     "force": {
