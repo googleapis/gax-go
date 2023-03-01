@@ -129,3 +129,14 @@ func TestOnHTTPCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestWithTimeout(t *testing.T) {
+	settings := CallSettings{}
+	to := 10 * time.Second
+
+	WithTimeout(to).Resolve(&settings)
+
+	if settings.timeout != to {
+		t.Errorf("got %v, want %v", settings.timeout, to)
+	}
+}
