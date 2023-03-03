@@ -183,6 +183,51 @@ func TestError(t *testing.T) {
 	}
 	rqS, _ := status.New(codes.Canceled, "Request cancelled by client").WithDetails(rq, ri, pf, br, qf)
 
+	rs := &errdetails.ResourceInfo{
+		ResourceType: "Foo",
+		ResourceName: "Bar",
+		Owner:        "Client",
+		Description:  "Directory not Found",
+	}
+	rS, _ := status.New(codes.NotFound, "rs").WithDetails(rs)
+
+	deb := &errdetails.DebugInfo{
+		StackEntries: []string{"Foo", "Bar"},
+		Detail:       "Stack",
+	}
+	dS, _ := status.New(codes.DataLoss, "Here is the debug info").WithDetails(deb)
+
+	hp := &errdetails.Help{
+		Links: []*errdetails.Help_Link{{Description: "Foo", Url: "Bar"}},
+	}
+	hS, _ := status.New(codes.Unimplemented, "Help Info").WithDetails(hp)
+
+	lo := &errdetails.LocalizedMessage{
+		Locale:  "Foo",
+		Message: "Bar",
+	}
+	lS, _ := status.New(codes.Unknown, "Localized Message").WithDetails(lo)
+
+	var uu []interface{}
+	uu = append(uu, "unknown detail 1")
+	uS := status.New(codes.Unknown, "Unknown")
+
+	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
+	any, err := anypb.New(httpErrInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
+	data, err := protojson.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hae := &googleapi.Error{
+		Message: "just because",
+		Body:    string(data),
+	}
+	haeS := status.New(codes.Unknown, "just because")
+
 	tests := []struct {
 		apierr *APIError
 		name   string
@@ -191,7 +236,13 @@ func TestError(t *testing.T) {
 		{&APIError{err: bS.Err(), status: bS, details: ErrDetails{BadRequest: br}}, "bad_request"},
 		{&APIError{err: rqS.Err(), status: rqS, details: ErrDetails{RequestInfo: rq, RetryInfo: ri,
 			PreconditionFailure: pf, QuotaFailure: qf, BadRequest: br}}, "multiple_info"},
+		{&APIError{err: bS.Err(), status: rS, details: ErrDetails{ResourceInfo: rs}}, "resource_info"},
+		{&APIError{err: bS.Err(), status: dS, details: ErrDetails{DebugInfo: deb}}, "debug_info"},
+		{&APIError{err: bS.Err(), status: hS, details: ErrDetails{Help: hp}}, "help"},
+		{&APIError{err: bS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, "localized_message"},
+		{&APIError{err: bS.Err(), status: uS, details: ErrDetails{Unknown: uu}}, "unknown"},
 		{&APIError{err: bS.Err(), status: bS, details: ErrDetails{}}, "empty"},
+		{&APIError{err: hae, httpErr: hae, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}}, "http_err"},
 	}
 	for _, tc := range tests {
 		t.Helper()
@@ -344,8 +395,10 @@ func TestFromError(t *testing.T) {
 		t.Fatal(err)
 	}
 	hae := &googleapi.Error{
-		Body: string(data),
+		Message: "just because",
+		Body:    string(data),
 	}
+	haeS := status.New(codes.Unknown, "just because")
 
 	tests := []struct {
 		apierr *APIError
@@ -362,7 +415,7 @@ func TestFromError(t *testing.T) {
 		{&APIError{err: hS.Err(), status: hS, details: ErrDetails{Help: hp}}, true},
 		{&APIError{err: lS.Err(), status: lS, details: ErrDetails{LocalizedMessage: lo}}, true},
 		{&APIError{err: uS.Err(), status: uS, details: ErrDetails{Unknown: u}}, true},
-		{&APIError{err: hae, httpErr: hae, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
+		{&APIError{err: hae, httpErr: hae, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
 		{&APIError{err: errors.New("standard error")}, false},
 	}
 
@@ -373,13 +426,13 @@ func TestFromError(t *testing.T) {
 		}
 		if tc.b {
 			if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
-				t.Errorf("got(-), want(+),: \n%s", diff)
+				t.Errorf("FromError(%s): got(-), want(+),: \n%s", tc.apierr.err, diff)
 			}
 			if diff := cmp.Diff(got.status, tc.apierr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
-				t.Errorf("got(-), want(+),: \n%s", diff)
+				t.Errorf("FromError(%s): got(-), want(+),: \n%s", tc.apierr.err, diff)
 			}
 			if diff := cmp.Diff(got.err, tc.apierr.err, cmpopts.EquateErrors()); diff != "" {
-				t.Errorf("got(-), want(+),: \n%s", diff)
+				t.Errorf("FromError(%s): got(-), want(+),: \n%s", tc.apierr.err, diff)
 			}
 		}
 	}
@@ -404,8 +457,10 @@ func TestParseError(t *testing.T) {
 		t.Fatal(err)
 	}
 	hae := &googleapi.Error{
-		Body: string(data),
+		Message: "just because",
+		Body:    string(data),
 	}
+	haeS := status.New(codes.Unknown, "just because")
 
 	se := errors.New("standard error")
 
@@ -414,7 +469,7 @@ func TestParseError(t *testing.T) {
 		apierr *APIError
 		b      bool
 	}{
-		{hae, &APIError{httpErr: hae, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
+		{hae, &APIError{httpErr: hae, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
 		{se, &APIError{err: se}, false},
 	}
 
