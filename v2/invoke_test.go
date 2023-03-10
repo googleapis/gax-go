@@ -204,6 +204,10 @@ func TestInvokeRetryTimeout(t *testing.T) {
 }
 
 func TestInvokeWithTimeout(t *testing.T) {
+	// Dummy APICall that sleeps for the given amount of time. This simulates an
+	// APICall executing, allowing us to verify which deadline was respected,
+	// that already set on the Context, or the one calculated using the
+	// WithTimeout option's value.
 	sleepingCall := func(sleep time.Duration) APICall {
 		return func(ctx context.Context, _ CallSettings) error {
 			time.Sleep(sleep)

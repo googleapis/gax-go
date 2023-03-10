@@ -242,7 +242,7 @@ func WithGRPCOptions(opt ...grpc.CallOption) CallOption {
 // singular context.Context used for **all** APICall attempts. Calculated from
 // the start of the first APICall attempt.
 // If the context.Context provided to Invoke already has a Deadline set, that
-// will always be respected over the deadline calculated using WithTimeout.
+// will always be respected over the deadline calculated using this option.
 func WithTimeout(t time.Duration) CallOption {
 	return &timeoutOpt{t: t}
 }
