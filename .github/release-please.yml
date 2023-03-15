@@ -2,3 +2,4 @@ handleGHRelease: true
 manifest: true
 manifestFile: v2/.release-please-manifest.json
 manifestConfig: v2/release-please-config.json
+releaseType: go-yoshi
