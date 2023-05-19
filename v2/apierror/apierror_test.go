@@ -519,3 +519,35 @@ func toAPIError(e *errdetails.ErrorInfo) *APIError {
 		details: ErrDetails{ErrorInfo: e},
 	}
 }
+
+func TestHTTPCode(t *testing.T) {
+	tests := []struct {
+		name   string
+		apierr *APIError
+		want   int
+	}{
+		{
+			name:   "basic http error",
+			apierr: &APIError{httpErr: &googleapi.Error{Code: 418}},
+			want:   418,
+		},
+		{
+			name:   "http error, with unknown status",
+			apierr: &APIError{httpErr: &googleapi.Error{Code: 418}, status: status.New(codes.Unknown, "???")},
+			want:   418,
+		},
+		{
+			name:   "gRPC error",
+			apierr: &APIError{status: status.New(codes.DataLoss, "where did it go?")},
+			want:   -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.apierr.HTTPCode(); got != tt.want {
+				t.Errorf("HTTPCode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -349,3 +349,13 @@ func parseHTTPDetails(gae *googleapi.Error) ErrDetails {
 
 	return parseDetails(details)
 }
+
+// HTTPCode returns the underlying HTTP response status code. This method returns
+// `-1` if the underlying error is a [google.golang.org/grpc/status.Status]. To
+// check gRPC error codes use [google.golang.org/grpc/status.Code].
+func (a *APIError) HTTPCode() int {
+	if a.httpErr == nil {
+		return -1
+	}
+	return a.httpErr.Code
+}
