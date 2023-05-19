@@ -29,6 +29,10 @@
 
 // Package apierror implements a wrapper error for parsing error details from
 // API calls. Both HTTP & gRPC status errors are supported.
+//
+// For examples of how to use [APIError] with client libraries please reference
+// [Inspecting errors](https://pkg.go.dev/cloud.google.com/go#hdr-Inspecting_errors)
+// in the client library documentation.
 package apierror
 
 import (
