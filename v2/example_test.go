@@ -260,3 +260,49 @@ func ExampleProtoJSONStream() {
 		// TODO: handle err
 	}
 }
+
+func ExampleInvoke_grpc() {
+	ctx := context.Background()
+	c := &fakeClient{}
+	opt := gax.WithRetry(func() gax.Retryer {
+		return gax.OnCodes([]codes.Code{codes.Unknown, codes.Unavailable}, gax.Backoff{
+			Initial:    time.Second,
+			Max:        32 * time.Second,
+			Multiplier: 2,
+		})
+	})
+
+	var resp *fakeResponse
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		resp, err = c.PerformSomeRPC(ctx)
+		return err
+	}, opt)
+	if err != nil {
+		// TODO: handle err
+	}
+	_ = resp // TODO: use resp if err is nil
+}
+
+func ExampleInvoke_http() {
+	ctx := context.Background()
+	c := &fakeClient{}
+	opt := gax.WithRetry(func() gax.Retryer {
+		return gax.OnHTTPCodes(gax.Backoff{
+			Initial:    time.Second,
+			Max:        32 * time.Second,
+			Multiplier: 2,
+		}, http.StatusBadGateway, http.StatusServiceUnavailable)
+	})
+
+	var resp *fakeResponse
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
+		var err error
+		resp, err = c.PerformSomeRPC(ctx)
+		return err
+	}, opt)
+	if err != nil {
+		// TODO: handle err
+	}
+	_ = resp // TODO: use resp if err is nil
+}

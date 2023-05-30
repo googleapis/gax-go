@@ -39,7 +39,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	serviceconfigpb "google.golang.org/genproto/googleapis/api/serviceconfig"
-	"google.golang.org/genproto/googleapis/longrunning"
+	"google.golang.org/genproto/googleapis/rpc/code"
+	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -72,13 +73,17 @@ func TestRecv(t *testing.T) {
 		durationpb.New(time.Hour),
 	}
 
-	md, _ := anypb.New(locations[0])
-
+	detail, err := anypb.New(locations[0])
+	if err != nil {
+		t.Fatal(err)
+	}
 	nested := []proto.Message{
-		&longrunning.Operation{
-			Name:     "foo",
-			Done:     true,
-			Metadata: md,
+		&status.Status{
+			Code:    int32(code.Code_INTERNAL),
+			Message: "oops",
+			Details: []*anypb.Any{
+				detail,
+			},
 		},
 	}
 
