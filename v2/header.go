@@ -29,7 +29,12 @@
 
 package gax
 
-import "bytes"
+import (
+	"bytes"
+	"runtime"
+	"strings"
+	"unicode"
+)
 
 // XGoogHeader is for use by the Google Cloud Libraries only.
 //
@@ -50,4 +55,53 @@ func XGoogHeader(keyval ...string) string {
 		buf.WriteString(keyval[i+1])
 	}
 	return buf.String()[1:]
+}
+
+// version is a package internal global variable for testing purposes.
+var version = runtime.Version
+
+// VersionUnknown is only used when the runtime version cannot be determined.
+const VersionUnknown = "UNKNOWN"
+
+// GoVersion returns a Go runtime version derived from the runtime environment
+// that is modified to be suitable for reporting in a header, meaning it has no
+// whitespace. If it is unable to determine the Go runtime version, it returns
+// VersionUnknown.
+func GoVersion() string {
+	const develPrefix = "devel +"
+
+	s := version()
+	if strings.HasPrefix(s, develPrefix) {
+		s = s[len(develPrefix):]
+		if p := strings.IndexFunc(s, unicode.IsSpace); p >= 0 {
+			s = s[:p]
+		}
+		return s
+	}
+
+	notSemverRune := func(r rune) bool {
+		return !strings.ContainsRune("0123456789.", r)
+	}
+
+	if strings.HasPrefix(s, "go1") {
+		s = s[2:]
+		var prerelease string
+		if p := strings.IndexFunc(s, notSemverRune); p >= 0 {
+			s, prerelease = s[:p], s[p:]
+		}
+		if strings.HasSuffix(s, ".") {
+			s += "0"
+		} else if strings.Count(s, ".") < 2 {
+			s += ".0"
+		}
+		if prerelease != "" {
+			// Some release candidates already have a dash in them.
+			if !strings.HasPrefix(prerelease, "-") {
+				prerelease = "-" + prerelease
+			}
+			s += prerelease
+		}
+		return s
+	}
+	return "UNKNOWN"
 }
