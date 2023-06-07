@@ -75,11 +75,11 @@ func TestGoVersion(t *testing.T) {
 		},
 		{
 			testVersion("this should be unknown"),
-			VersionUnknown,
+			versionUnknown,
 		},
 	} {
 		version = tst.v
-		got := GoVersion()
+		got := goVersion()
 		if diff := cmp.Diff(got, tst.want); diff != "" {
 			t.Errorf("got(-),want(+):\n%s", diff)
 		}

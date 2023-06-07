@@ -36,38 +36,27 @@ import (
 	"unicode"
 )
 
-// XGoogHeader is for use by the Google Cloud Libraries only.
-//
-// XGoogHeader formats key-value pairs.
-// The resulting string is suitable for x-goog-api-client header.
-func XGoogHeader(keyval ...string) string {
-	if len(keyval) == 0 {
-		return ""
-	}
-	if len(keyval)%2 != 0 {
-		panic("gax.Header: odd argument count")
-	}
-	var buf bytes.Buffer
-	for i := 0; i < len(keyval); i += 2 {
-		buf.WriteByte(' ')
-		buf.WriteString(keyval[i])
-		buf.WriteByte('/')
-		buf.WriteString(keyval[i+1])
-	}
-	return buf.String()[1:]
+var (
+	// GoVersion is a header-safe representation of the current runtime
+	// environment's Go version. This is for GAX consumers that need to
+	// report the Go runtime version in API calls.
+	GoVersion string
+	// version is a package internal global variable for testing purposes.
+	version = runtime.Version
+)
+
+// versionUnknown is only used when the runtime version cannot be determined.
+const versionUnknown = "UNKNOWN"
+
+func init() {
+	GoVersion = goVersion()
 }
 
-// version is a package internal global variable for testing purposes.
-var version = runtime.Version
-
-// VersionUnknown is only used when the runtime version cannot be determined.
-const VersionUnknown = "UNKNOWN"
-
-// GoVersion returns a Go runtime version derived from the runtime environment
+// goVersion returns a Go runtime version derived from the runtime environment
 // that is modified to be suitable for reporting in a header, meaning it has no
 // whitespace. If it is unable to determine the Go runtime version, it returns
-// VersionUnknown.
-func GoVersion() string {
+// versionUnknown.
+func goVersion() string {
 	const develPrefix = "devel +"
 
 	s := version()
@@ -104,4 +93,25 @@ func GoVersion() string {
 		return s
 	}
 	return "UNKNOWN"
+}
+
+// XGoogHeader is for use by the Google Cloud Libraries only.
+//
+// XGoogHeader formats key-value pairs.
+// The resulting string is suitable for x-goog-api-client header.
+func XGoogHeader(keyval ...string) string {
+	if len(keyval) == 0 {
+		return ""
+	}
+	if len(keyval)%2 != 0 {
+		panic("gax.Header: odd argument count")
+	}
+	var buf bytes.Buffer
+	for i := 0; i < len(keyval); i += 2 {
+		buf.WriteByte(' ')
+		buf.WriteString(keyval[i])
+		buf.WriteByte('/')
+		buf.WriteString(keyval[i+1])
+	}
+	return buf.String()[1:]
 }
