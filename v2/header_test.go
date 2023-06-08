@@ -29,7 +29,11 @@
 
 package gax
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 func TestXGoogHeader(t *testing.T) {
 	for _, tst := range []struct {
@@ -43,6 +47,41 @@ func TestXGoogHeader(t *testing.T) {
 		got := XGoogHeader(tst.kv...)
 		if got != tst.want {
 			t.Errorf("Header(%q) = %q, want %q", tst.kv, got, tst.want)
+		}
+	}
+}
+
+func TestGoVersion(t *testing.T) {
+	testVersion := func(v string) func() string {
+		return func() string {
+			return v
+		}
+	}
+	for _, tst := range []struct {
+		v    func() string
+		want string
+	}{
+		{
+			testVersion("go1.19"),
+			"1.19.0",
+		},
+		{
+			testVersion("go1.21-20230317-RC01"),
+			"1.21.0-20230317-RC01",
+		},
+		{
+			testVersion("devel +abc1234"),
+			"abc1234",
+		},
+		{
+			testVersion("this should be unknown"),
+			versionUnknown,
+		},
+	} {
+		version = tst.v
+		got := goVersion()
+		if diff := cmp.Diff(got, tst.want); diff != "" {
+			t.Errorf("got(-),want(+):\n%s", diff)
 		}
 	}
 }
