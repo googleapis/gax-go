@@ -30,9 +30,12 @@
 package gax
 
 import (
+	"context"
+	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/grpc/metadata"
 )
 
 func TestXGoogHeader(t *testing.T) {
@@ -83,5 +86,22 @@ func TestGoVersion(t *testing.T) {
 		if diff := cmp.Diff(got, tst.want); diff != "" {
 			t.Errorf("got(-),want(+):\n%s", diff)
 		}
+	}
+}
+
+func TestInsertMetadata(t *testing.T) {
+	existingMd := metadata.Pairs("key_1", "val_1")
+	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
+	mds := []metadata.MD{
+		metadata.Pairs("key_2", "val_21"),
+		metadata.Pairs("key_2", "val_22"),
+	}
+
+	ctx2 := InsertMetadata(ctx, mds...)
+
+	got, _ := metadata.FromOutgoingContext(ctx2)
+	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22")
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("InsertMetadata(ctx, %q) = %q, want %q", mds, got, want)
 	}
 }
