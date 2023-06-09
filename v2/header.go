@@ -31,9 +31,12 @@ package gax
 
 import (
 	"bytes"
+	"context"
 	"runtime"
 	"strings"
 	"unicode"
+
+	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -116,4 +119,19 @@ func XGoogHeader(keyval ...string) string {
 		buf.WriteString(keyval[i+1])
 	}
 	return buf.String()[1:]
+}
+
+// InsertMetadata is for use by the Google Cloud Libraries only.
+//
+// InsertMetadata returns a new context with the provided mds merged with any
+// existing metadata in the provided context.
+func InsertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
+	out, _ := metadata.FromOutgoingContext(ctx)
+	out = out.Copy()
+	for _, md := range mds {
+		for k, v := range md {
+			out[k] = append(out[k], v...)
+		}
+	}
+	return metadata.NewOutgoingContext(ctx, out)
 }
