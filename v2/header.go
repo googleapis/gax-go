@@ -32,7 +32,6 @@ package gax
 import (
 	"bytes"
 	"context"
-	"net/http"
 	"runtime"
 	"strings"
 	"unicode"
@@ -122,9 +121,9 @@ func XGoogHeader(keyval ...string) string {
 
 // InsertMetadata is for use by the Google Cloud Libraries only.
 //
-// InsertMetadata returns a new context with the provided mds merged with any
+// InsertMetadata returns a new metadata.MD with the provided mds merged with any
 // existing metadata in the provided context.
-func InsertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
+func InsertMetadata(ctx context.Context, mds ...metadata.MD) metadata.MD {
 	out, _ := metadata.FromOutgoingContext(ctx)
 	out = out.Copy()
 	for _, md := range mds {
@@ -132,17 +131,17 @@ func InsertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
 			out[k] = append(out[k], v...)
 		}
 	}
-	return metadata.NewOutgoingContext(ctx, out)
+	return out
 }
 
 // BuildHeaders is for use by the Google Cloud Libraries only.
 //
 // BuildHeaders extracts metadata from the outgoing context, joins it with any
-// other given metadata, and converts them into a http.Header.
-func BuildHeaders(ctx context.Context, mds ...metadata.MD) http.Header {
+// other given metadata into a new metadata.MD.
+func BuildHeaders(ctx context.Context, mds ...metadata.MD) metadata.MD {
 	if cmd, ok := metadata.FromOutgoingContext(ctx); ok {
 		mds = append(mds, cmd)
 	}
 	md := metadata.Join(mds...)
-	return http.Header(md)
+	return md
 }
