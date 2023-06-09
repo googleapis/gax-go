@@ -31,6 +31,7 @@ package gax
 
 import (
 	"context"
+	"net/http"
 	"reflect"
 	"testing"
 
@@ -107,5 +108,21 @@ func TestInsertMetadata(t *testing.T) {
 	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22")
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("InsertMetadata(ctx, %q) = %q, want %q", mds, got, want)
+	}
+}
+
+func TestBuildHeaders(t *testing.T) {
+	existingMd := metadata.Pairs("key_1", "val_1")
+	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
+	mds := []metadata.MD{
+		metadata.Pairs("key_2", "val_21"),
+		metadata.Pairs("key_2", "val_22"),
+	}
+
+	got := BuildHeaders(ctx, mds...)
+
+	want := http.Header{"key_1": []string{"val_1"}, "key_2": []string{"val_21", "val_22"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("BuildHeaders(ctx, %q) = %q, want %q", mds, got, want)
 	}
 }
