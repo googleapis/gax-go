@@ -66,6 +66,8 @@ func goVersion() string {
 			s = s[:p]
 		}
 		return s
+	} else if p := strings.IndexFunc(s, unicode.IsSpace); p >= 0 {
+		s = s[:p]
 	}
 
 	notSemverRune := func(r rune) bool {

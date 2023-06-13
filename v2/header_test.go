@@ -77,6 +77,10 @@ func TestGoVersion(t *testing.T) {
 			testVersion("this should be unknown"),
 			versionUnknown,
 		},
+		{
+			testVersion("go1.21-20230101-RC01 cl/1234567 +abc1234"),
+			"1.21.0-20230101-RC01",
+		},
 	} {
 		version = tst.v
 		got := goVersion()
