@@ -94,7 +94,7 @@ func TestGoVersion(t *testing.T) {
 	}
 }
 
-func TestInsertMetadata(t *testing.T) {
+func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
 	existingMd := metadata.Pairs("key_1", "val_1")
 	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
 	mds := []metadata.MD{
@@ -102,7 +102,7 @@ func TestInsertMetadata(t *testing.T) {
 		metadata.Pairs("key_2", "val_22"),
 	}
 
-	ctx2 := InsertMetadata(ctx, mds...)
+	ctx2 := InsertMetadataIntoOutgoingContext(ctx, mds...)
 
 	got, _ := metadata.FromOutgoingContext(ctx2)
 	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22")

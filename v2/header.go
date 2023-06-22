@@ -122,11 +122,12 @@ func XGoogHeader(keyval ...string) string {
 	return buf.String()[1:]
 }
 
-// InsertMetadata is for use by the Google Cloud Libraries only.
+// InsertMetadataIntoOutgoingContext is for use by the Google Cloud Libraries
+// only.
 //
-// InsertMetadata returns a new context with the provided mds merged with any
-// existing metadata in the provided context.
-func InsertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
+// InsertMetadataIntoOutgoingContext returns a new context with the provided mds
+// merged with any existing metadata in the provided context.
+func InsertMetadataIntoOutgoingContext(ctx context.Context, mds ...metadata.MD) context.Context {
 	out, _ := metadata.FromOutgoingContext(ctx)
 	out = out.Copy()
 	for _, md := range mds {
