@@ -34,6 +34,7 @@ package callctx
 
 import (
 	"context"
+	"fmt"
 )
 
 const (
@@ -57,12 +58,10 @@ func HeadersFromContext(ctx context.Context) map[string][]string {
 // be retrieved by [HeadersFromContext]. Values stored in this manner will
 // automatically be retrieved by client libraries and sent as outgoing headers
 // on all requests. keyvals should have a corresponding value for every key
-// provided. If there is an odd number of keyvals the context passed to this
-// method will be returned and no values will be stored in the context.
+// provided. If there is an odd number of keyvals this method will panic.
 func SetHeaders(ctx context.Context, keyvals ...string) context.Context {
 	if len(keyvals)%2 != 0 {
-		// TODO(codyoss): maybe eventually log here when we have the facilities
-		return ctx
+		panic(fmt.Sprintf("callctx: an even number of key value pairs must be proviced, got %d", len(keyvals)))
 	}
 	h, ok := ctx.Value(headerKey).(map[string][]string)
 	if !ok {

@@ -57,11 +57,6 @@ func TestAll(t *testing.T) {
 			pairs: []string{"key", "value", "key", "value2"},
 			want:  map[string][]string{"key": {"value", "value2"}},
 		},
-		{
-			name:  "odd key value pairs",
-			pairs: []string{"key", "value", "key"},
-			want:  nil,
-		},
 	}
 	for _, tc := range testCases {
 		ctx := context.Background()
@@ -71,4 +66,14 @@ func TestAll(t *testing.T) {
 			t.Errorf("HeadersFromContext() mismatch (-want +got):\n%s", diff)
 		}
 	}
+}
+
+func TestSetHeaders_panics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("expected panic with odd key value pairs")
+		}
+	}()
+	ctx := context.Background()
+	SetHeaders(ctx, "1", "2", "3")
 }
