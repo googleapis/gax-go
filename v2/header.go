@@ -131,6 +131,20 @@ func XGoogHeader(keyval ...string) string {
 // context. keyvals should have a corresponding value for every key provided.
 // If there is an odd number of keyvals this method will panic.
 func InsertMetadataIntoOutgoingContext(ctx context.Context, keyvals ...string) context.Context {
+	return metadata.NewOutgoingContext(ctx, insertMetadata(ctx, keyvals...))
+}
+
+// BuildHeaders is for use by the Google Cloud Libraries only.
+//
+// BuildHeaders returns a new http.Header that merges the provided
+// keyvals header pairs with any existing (metadata) headers in the provided
+// context. keyvals should have a corresponding value for every key provided.
+// If there is an odd number of keyvals this method will panic.
+func BuildHeaders(ctx context.Context, keyvals ...string) http.Header {
+	return http.Header(insertMetadata(ctx, keyvals...))
+}
+
+func insertMetadata(ctx context.Context, keyvals ...string) metadata.MD {
 	if len(keyvals)%2 != 0 {
 		panic(fmt.Sprintf("gax: an even number of key value pairs must be provided, got %d", len(keyvals)))
 	}
@@ -139,17 +153,5 @@ func InsertMetadataIntoOutgoingContext(ctx context.Context, keyvals ...string) c
 	for i := 0; i < len(keyvals); i = i + 2 {
 		out[keyvals[i]] = append(out[keyvals[i]], keyvals[i+1])
 	}
-	return metadata.NewOutgoingContext(ctx, out)
-}
-
-// BuildHeaders is for use by the Google Cloud Libraries only.
-//
-// BuildHeaders extracts metadata from the outgoing context, joins it with any
-// other given metadata, and converts them into a http.Header.
-func BuildHeaders(ctx context.Context, mds ...metadata.MD) http.Header {
-	if cmd, ok := metadata.FromOutgoingContext(ctx); ok {
-		mds = append(mds, cmd)
-	}
-	md := metadata.Join(mds...)
-	return http.Header(md)
+	return out
 }

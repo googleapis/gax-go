@@ -109,17 +109,14 @@ func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
 }
 
 func TestBuildHeaders(t *testing.T) {
-	existingMd := metadata.Pairs("key_1", "val_1")
+	existingMd := metadata.Pairs("key_1", "val_1", "key_2", "val_21")
 	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
-	mds := []metadata.MD{
-		metadata.Pairs("key_2", "val_21"),
-		metadata.Pairs("key_2", "val_22"),
-	}
+	keyvals := []string{"key_2", "val_22", "key_2", "val_23"}
 
-	got := BuildHeaders(ctx, mds...)
+	got := BuildHeaders(ctx, keyvals...)
 
-	want := http.Header{"key_1": []string{"val_1"}, "key_2": []string{"val_21", "val_22"}}
+	want := http.Header{"key_1": []string{"val_1"}, "key_2": []string{"val_21", "val_22", "val_23"}}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("BuildHeaders(ctx, %q) = %q, want %q", mds, got, want)
+		t.Errorf("BuildHeaders(ctx, %q) = %q, want %q", keyvals, got, want)
 	}
 }
