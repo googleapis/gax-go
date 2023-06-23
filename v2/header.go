@@ -131,6 +131,8 @@ func XGoogHeader(keyval ...string) string {
 // provided keyvals metadata pairs with any existing metadata/headers in the
 // provided context. keyvals should have a corresponding value for every key
 // provided. If there is an odd number of keyvals this method will panic.
+// Existing values for keys will not be overwritten, instead provided values
+// will be appended to the list of existing values.
 func InsertMetadataIntoOutgoingContext(ctx context.Context, keyvals ...string) context.Context {
 	return metadata.NewOutgoingContext(ctx, insertMetadata(ctx, keyvals...))
 }
@@ -141,6 +143,8 @@ func InsertMetadataIntoOutgoingContext(ctx context.Context, keyvals ...string) c
 // keyvals header pairs with any existing metadata/headers in the provided
 // context. keyvals should have a corresponding value for every key provided.
 // If there is an odd number of keyvals this method will panic.
+// Existing values for keys will not be overwritten, instead provided values
+// will be appended to the list of existing values.
 func BuildHeaders(ctx context.Context, keyvals ...string) http.Header {
 	return http.Header(insertMetadata(ctx, keyvals...))
 }
