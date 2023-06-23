@@ -32,6 +32,7 @@ package gax
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"runtime"
 	"strings"
@@ -125,15 +126,18 @@ func XGoogHeader(keyval ...string) string {
 // InsertMetadataIntoOutgoingContext is for use by the Google Cloud Libraries
 // only.
 //
-// InsertMetadataIntoOutgoingContext returns a new context with the provided mds
-// merged with any existing metadata in the provided context.
-func InsertMetadataIntoOutgoingContext(ctx context.Context, mds ...metadata.MD) context.Context {
+// InsertMetadataIntoOutgoingContext returns a new context that merges the
+// provided keyvals metadata pairs with any existing metadata in the provided
+// context. keyvals should have a corresponding value for every key provided.
+// If there is an odd number of keyvals this method will panic.
+func InsertMetadataIntoOutgoingContext(ctx context.Context, keyvals ...string) context.Context {
+	if len(keyvals)%2 != 0 {
+		panic(fmt.Sprintf("gax: an even number of key value pairs must be provided, got %d", len(keyvals)))
+	}
 	out, _ := metadata.FromOutgoingContext(ctx)
 	out = out.Copy()
-	for _, md := range mds {
-		for k, v := range md {
-			out[k] = append(out[k], v...)
-		}
+	for i := 0; i < len(keyvals); i = i + 2 {
+		out[keyvals[i]] = append(out[keyvals[i]], keyvals[i+1])
 	}
 	return metadata.NewOutgoingContext(ctx, out)
 }

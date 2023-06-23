@@ -95,19 +95,16 @@ func TestGoVersion(t *testing.T) {
 }
 
 func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
-	existingMd := metadata.Pairs("key_1", "val_1")
+	existingMd := metadata.Pairs("key_1", "val_1", "key_2", "val_21")
 	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
-	mds := []metadata.MD{
-		metadata.Pairs("key_2", "val_21"),
-		metadata.Pairs("key_2", "val_22"),
-	}
+	keyvals := []string{"key_2", "val_22", "key_2", "val_23"}
 
-	ctx2 := InsertMetadataIntoOutgoingContext(ctx, mds...)
+	ctx2 := InsertMetadataIntoOutgoingContext(ctx, keyvals...)
 
 	got, _ := metadata.FromOutgoingContext(ctx2)
-	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22")
+	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22", "key_2", "val_23")
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("InsertMetadata(ctx, %q) = %q, want %q", mds, got, want)
+		t.Errorf("InsertMetadata(ctx, %q) = %q, want %q", keyvals, got, want)
 	}
 }
 
