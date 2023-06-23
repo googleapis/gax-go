@@ -38,6 +38,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/googleapis/gax-go/v2/callctx"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -127,9 +128,9 @@ func XGoogHeader(keyval ...string) string {
 // only.
 //
 // InsertMetadataIntoOutgoingContext returns a new context that merges the
-// provided keyvals metadata pairs with any existing metadata in the provided
-// context. keyvals should have a corresponding value for every key provided.
-// If there is an odd number of keyvals this method will panic.
+// provided keyvals metadata pairs with any existing metadata/headers in the
+// provided context. keyvals should have a corresponding value for every key
+// provided. If there is an odd number of keyvals this method will panic.
 func InsertMetadataIntoOutgoingContext(ctx context.Context, keyvals ...string) context.Context {
 	return metadata.NewOutgoingContext(ctx, insertMetadata(ctx, keyvals...))
 }
@@ -137,7 +138,7 @@ func InsertMetadataIntoOutgoingContext(ctx context.Context, keyvals ...string) c
 // BuildHeaders is for use by the Google Cloud Libraries only.
 //
 // BuildHeaders returns a new http.Header that merges the provided
-// keyvals header pairs with any existing (metadata) headers in the provided
+// keyvals header pairs with any existing metadata/headers in the provided
 // context. keyvals should have a corresponding value for every key provided.
 // If there is an odd number of keyvals this method will panic.
 func BuildHeaders(ctx context.Context, keyvals ...string) http.Header {
@@ -150,6 +151,10 @@ func insertMetadata(ctx context.Context, keyvals ...string) metadata.MD {
 	}
 	out, _ := metadata.FromOutgoingContext(ctx)
 	out = out.Copy()
+	headers := callctx.HeadersFromContext(ctx)
+	for k, v := range headers {
+		out[k] = append(out[k], v...)
+	}
 	for i := 0; i < len(keyvals); i = i + 2 {
 		out[keyvals[i]] = append(out[keyvals[i]], keyvals[i+1])
 	}

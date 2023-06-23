@@ -36,6 +36,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/googleapis/gax-go/v2/callctx"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -95,27 +96,35 @@ func TestGoVersion(t *testing.T) {
 }
 
 func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
+	// User-provided metadata set in context
 	existingMd := metadata.Pairs("key_1", "val_1", "key_2", "val_21")
 	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
-	keyvals := []string{"key_2", "val_22", "key_2", "val_23"}
+	// User-provided headers set in context
+	ctx = callctx.SetHeaders(ctx, "key_2", "val_22")
+	// Client-provided headers
+	keyvals := []string{"key_2", "val_23", "key_2", "val_24"}
 
 	ctx2 := InsertMetadataIntoOutgoingContext(ctx, keyvals...)
 
 	got, _ := metadata.FromOutgoingContext(ctx2)
-	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22", "key_2", "val_23")
+	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22", "key_2", "val_23", "key_2", "val_24")
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("InsertMetadata(ctx, %q) = %q, want %q", keyvals, got, want)
 	}
 }
 
 func TestBuildHeaders(t *testing.T) {
+	// User-provided metadata set in context
 	existingMd := metadata.Pairs("key_1", "val_1", "key_2", "val_21")
 	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
-	keyvals := []string{"key_2", "val_22", "key_2", "val_23"}
+	// User-provided headers set in context
+	ctx = callctx.SetHeaders(ctx, "key_2", "val_22")
+	// Client-provided headers
+	keyvals := []string{"key_2", "val_23", "key_2", "val_24"}
 
 	got := BuildHeaders(ctx, keyvals...)
 
-	want := http.Header{"key_1": []string{"val_1"}, "key_2": []string{"val_21", "val_22", "val_23"}}
+	want := http.Header{"key_1": []string{"val_1"}, "key_2": []string{"val_21", "val_22", "val_23", "val_24"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("BuildHeaders(ctx, %q) = %q, want %q", keyvals, got, want)
 	}
