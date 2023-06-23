@@ -61,7 +61,7 @@ func HeadersFromContext(ctx context.Context) map[string][]string {
 // provided. If there is an odd number of keyvals this method will panic.
 func SetHeaders(ctx context.Context, keyvals ...string) context.Context {
 	if len(keyvals)%2 != 0 {
-		panic(fmt.Sprintf("callctx: an even number of key value pairs must be proviced, got %d", len(keyvals)))
+		panic(fmt.Sprintf("callctx: an even number of key value pairs must be provided, got %d", len(keyvals)))
 	}
 	h, ok := ctx.Value(headerKey).(map[string][]string)
 	if !ok {
