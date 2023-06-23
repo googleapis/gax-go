@@ -149,8 +149,11 @@ func insertMetadata(ctx context.Context, keyvals ...string) metadata.MD {
 	if len(keyvals)%2 != 0 {
 		panic(fmt.Sprintf("gax: an even number of key value pairs must be provided, got %d", len(keyvals)))
 	}
-	out, _ := metadata.FromOutgoingContext(ctx)
-	out = out.Copy()
+	var out metadata.MD
+	out, ok := metadata.FromOutgoingContext(ctx)
+	if ok {
+		out = out.Copy()
+	}
 	headers := callctx.HeadersFromContext(ctx)
 	for k, v := range headers {
 		out[k] = append(out[k], v...)

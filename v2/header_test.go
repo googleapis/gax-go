@@ -32,7 +32,6 @@ package gax
 import (
 	"context"
 	"net/http"
-	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -108,8 +107,8 @@ func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
 
 	got, _ := metadata.FromOutgoingContext(ctx2)
 	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22", "key_2", "val_23", "key_2", "val_24")
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("InsertMetadata(ctx, %q) = %q, want %q", keyvals, got, want)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("InsertMetadata(ctx, %q) mismatch (-want +got):\n%s", keyvals, diff)
 	}
 }
 
@@ -125,7 +124,7 @@ func TestBuildHeaders(t *testing.T) {
 	got := BuildHeaders(ctx, keyvals...)
 
 	want := http.Header{"key_1": []string{"val_1"}, "key_2": []string{"val_21", "val_22", "val_23", "val_24"}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("BuildHeaders(ctx, %q) = %q, want %q", keyvals, got, want)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("InsertMetadata(ctx, %q) mismatch (-want +got):\n%s", keyvals, diff)
 	}
 }
