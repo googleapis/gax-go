@@ -105,12 +105,12 @@ func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
 		want          metadata.MD
 	}{
 		{
-			userMd:        metadata.Pairs("key_1", "val_1", "key_2", "val_21"),
-			want:          metadata.Pairs("key_1", "val_1", "key_2", "val_21"),
+			userMd: metadata.Pairs("key_1", "val_1", "key_2", "val_21"),
+			want:   metadata.Pairs("key_1", "val_1", "key_2", "val_21"),
 		},
 		{
-			userHeaders:   []string{"key_2", "val_22"},
-			want:          metadata.Pairs("key_2", "val_22"),
+			userHeaders: []string{"key_2", "val_22"},
+			want:        metadata.Pairs("key_2", "val_22"),
 		},
 		{
 			clientHeaders: []string{"key_2", "val_23", "key_2", "val_24"},
