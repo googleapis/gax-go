@@ -95,20 +95,46 @@ func TestGoVersion(t *testing.T) {
 }
 
 func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
-	// User-provided metadata set in context
-	existingMd := metadata.Pairs("key_1", "val_1", "key_2", "val_21")
-	ctx := metadata.NewOutgoingContext(context.Background(), existingMd)
-	// User-provided headers set in context
-	ctx = callctx.SetHeaders(ctx, "key_2", "val_22")
-	// Client-provided headers
-	keyvals := []string{"key_2", "val_23", "key_2", "val_24"}
+	for _, tst := range []struct {
+		// User-provided metadata set in context
+		userMd metadata.MD
+		// User-provided headers set in context
+		userHeaders []string
+		// Client-provided headers passed to func
+		clientHeaders []string
+		want          metadata.MD
+	}{
+		{
+			userMd:        metadata.Pairs("key_1", "val_1", "key_2", "val_21"),
+			want:          metadata.Pairs("key_1", "val_1", "key_2", "val_21"),
+		},
+		{
+			userHeaders:   []string{"key_2", "val_22"},
+			want:          metadata.Pairs("key_2", "val_22"),
+		},
+		{
+			clientHeaders: []string{"key_2", "val_23", "key_2", "val_24"},
+			want:          metadata.Pairs("key_2", "val_23", "key_2", "val_24"),
+		},
+		{
+			userMd:        metadata.Pairs("key_1", "val_1", "key_2", "val_21"),
+			userHeaders:   []string{"key_2", "val_22"},
+			clientHeaders: []string{"key_2", "val_23", "key_2", "val_24"},
+			want:          metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22", "key_2", "val_23", "key_2", "val_24"),
+		},
+	} {
+		ctx := context.Background()
+		if tst.userMd != nil {
+			ctx = metadata.NewOutgoingContext(ctx, tst.userMd)
+		}
+		ctx = callctx.SetHeaders(ctx, tst.userHeaders...)
 
-	ctx2 := InsertMetadataIntoOutgoingContext(ctx, keyvals...)
+		ctx = InsertMetadataIntoOutgoingContext(ctx, tst.clientHeaders...)
 
-	got, _ := metadata.FromOutgoingContext(ctx2)
-	want := metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22", "key_2", "val_23", "key_2", "val_24")
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("InsertMetadata(ctx, %q) mismatch (-want +got):\n%s", keyvals, diff)
+		got, _ := metadata.FromOutgoingContext(ctx)
+		if diff := cmp.Diff(tst.want, got); diff != "" {
+			t.Errorf("InsertMetadata(ctx, %q) mismatch (-want +got):\n%s", tst.clientHeaders, diff)
+		}
 	}
 }
 
