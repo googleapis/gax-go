@@ -176,6 +176,11 @@ type Backoff struct {
 
 	// cur is the current retry period.
 	cur time.Duration
+
+	// To prevent continuous retries in case of errors, the MaxRetryCount variable
+	// serves as a checkpoint. It specifies the maximum allowable attempts before
+	// terminating the retry process.
+	MaxRetryCount int
 }
 
 // Pause returns the next time.Duration that the caller should use to backoff.
