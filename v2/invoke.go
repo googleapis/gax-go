@@ -107,7 +107,8 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		}
 		if d, ok := retryer.Retry(err); !ok {
 			return err
-		} else if err = sp(ctx, d); err != nil {
+		} else if spErr := sp(ctx, d); spErr != nil {
+                        // Returns the original API call error
 			return err
 		}
 	}

@@ -198,8 +198,8 @@ func TestInvokeRetryTimeout(t *testing.T) {
 
 	err := invoke(canceledContext, apiCall, settings, sp.sleep)
 
-	if err != context.Canceled {
-		t.Errorf("found error %s, want %s", err, context.Canceled)
+	if err != apiErr {
+		t.Errorf("found error %s, want %s", err, apiErr)
 	}
 }
 
