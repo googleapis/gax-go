@@ -52,7 +52,7 @@ func ExampleSetHeaders() {
 
 func ExampleXGoogFieldMask() {
 	ctx := context.Background()
-	ctx = callctx.SetHeaders(ctx, callctx.XGoogFieldMask, "value")
+	ctx = callctx.SetHeaders(ctx, callctx.XGoogFieldMask, "field_one", "field.two")
 
 	// Send the returned context to the request you are making.
 }
