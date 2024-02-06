@@ -34,6 +34,8 @@ import (
 	"fmt"
 
 	"github.com/googleapis/gax-go/v2/callctx"
+	"google.golang.org/genproto/googleapis/api/metric"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
 func ExampleSetHeaders() {
@@ -46,4 +48,24 @@ func ExampleSetHeaders() {
 	headers := callctx.HeadersFromContext(ctx)
 	fmt.Println(headers["key"][0])
 	// Output: value
+}
+
+func ExampleXGoogFieldMaskHeader() {
+	ctx := context.Background()
+	ctx = callctx.SetHeaders(ctx, callctx.XGoogFieldMaskHeader, "field_one,field.two")
+
+	// Send the returned context to the request you are making.
+}
+
+func ExampleXGoogFieldMaskHeader_fieldmaskpb() {
+	// Build a mask using the expected response protobuf message.
+	mask, err := fieldmaskpb.New(&metric.MetricDescriptor{}, "display_name", "metadata.launch_stage")
+	if err != nil {
+		// handle error
+	}
+
+	ctx := context.Background()
+	ctx = callctx.SetHeaders(ctx, callctx.XGoogFieldMaskHeader, mask.String())
+
+	// Send the returned context to the request you are making.
 }
