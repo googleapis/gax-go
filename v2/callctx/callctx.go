@@ -38,13 +38,13 @@ import (
 )
 
 const (
-	// XGoogFieldMask is the canonical header key for the [System Parameter]
+	// XGoogFieldMaskHeader is the canonical header key for the [System Parameter]
 	// that specifies the response read mask. The value(s) for this header
 	// must adhere to format described in [fieldmaskpb].
 	//
 	// [System Parameter]: https://cloud.google.com/apis/docs/system-parameters
 	// [fieldmaskpb]: https://google.golang.org/protobuf/types/known/fieldmaskpb
-	XGoogFieldMask = "x-goog-fieldmask"
+	XGoogFieldMaskHeader = "x-goog-fieldmask"
 
 	headerKey = contextKey("header")
 )
