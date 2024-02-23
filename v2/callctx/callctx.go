@@ -92,7 +92,9 @@ func SetHeaders(ctx context.Context, keyvals ...string) context.Context {
 func cloneHeaders(h map[string][]string) map[string][]string {
 	c := make(map[string][]string, len(h))
 	for k, v := range h {
-		c[k] = v
+		vc := make([]string, len(v))
+		copy(vc, v)
+		c[k] = vc
 	}
 	return c
 }
