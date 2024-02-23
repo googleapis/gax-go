@@ -31,6 +31,7 @@ package callctx
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -76,4 +77,46 @@ func TestSetHeaders_panics(t *testing.T) {
 	}()
 	ctx := context.Background()
 	SetHeaders(ctx, "1", "2", "3")
+}
+
+func TestSetHeaders_reuse(t *testing.T) {
+	c := SetHeaders(context.Background(), "key", "value1")
+	v1 := HeadersFromContext(c)
+	c = SetHeaders(c, "key", "value2")
+	v2 := HeadersFromContext(c)
+
+	if cmp.Diff(v2, v1) == "" {
+		t.Errorf("Second header set did not differ from first header set as expected")
+	}
+}
+
+func TestSetHeaders_race(t *testing.T) {
+	key := "key"
+	value := "value"
+	want := map[string][]string{
+		key: []string{value, value},
+	}
+
+	// Init the ctx so a value already exists to be "shared".
+	cctx := SetHeaders(context.Background(), key, value)
+
+	// Reusing the same cctx and adding to the same header key
+	// should *not* produce a race condition when run with -race.
+	var wg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(ctx context.Context) {
+			defer wg.Done()
+			c := SetHeaders(ctx, key, value)
+			h := HeadersFromContext(c)
+
+			// Additionally, if there was a race condition,
+			// we may see that one instance of these headers
+			// contains extra values.
+			if diff := cmp.Diff(h, want); diff != "" {
+				t.Errorf("got(-),want(+):\n%s", diff)
+			}
+		}(cctx)
+	}
+	wg.Wait()
 }
