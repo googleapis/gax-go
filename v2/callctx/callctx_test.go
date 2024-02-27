@@ -94,7 +94,7 @@ func TestSetHeaders_race(t *testing.T) {
 	key := "key"
 	value := "value"
 	want := map[string][]string{
-		key: []string{value, value},
+		key: {value, value},
 	}
 
 	// Init the ctx so a value already exists to be "shared".
