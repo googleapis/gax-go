@@ -12,9 +12,6 @@
     "commitMessageAction": "update",
     "labels": ["automerge"],
     "groupName": "all",
-    "ignoreDeps": [
-        "google.golang.org/grpc"
-    ],
     "force": {
         "constraints": {
             "go": "1.19"
