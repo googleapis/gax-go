@@ -162,8 +162,9 @@ func prepareStream(messages []proto.Message) (io.ReadCloser, error) {
 	}
 
 	data := []byte("[")
+	mo := protojson.MarshalOptions{AllowPartial: true, UseEnumNumbers: true}
 	for _, m := range messages {
-		d, err := protojson.Marshal(m)
+		d, err := mo.Marshal(m)
 		if err != nil {
 			return nil, err
 		}
