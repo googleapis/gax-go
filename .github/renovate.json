@@ -10,11 +10,13 @@
     ],
     "commitMessagePrefix": "chore(all): ",
     "commitMessageAction": "update",
-    "labels": ["automerge"],
+    "labels": [
+        "automerge"
+    ],
     "groupName": "all",
     "force": {
         "constraints": {
-            "go": "1.19"
+            "go": "1.20"
         }
     }
 }
