@@ -1,4 +1,4 @@
-// Copyright 2022, Google Inc.
+// Copyright 2024, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,5 +29,29 @@
 
 package internal
 
-// Version is the current tagged release of the library.
-const Version = "2.13.0"
+import (
+	"log/slog"
+	"sync"
+)
+
+const RedactedValue = "[redacted]"
+
+var (
+	// State is the configuration for logging.
+	State = LoggerState{}
+)
+
+// LoggerState holds the frozen configuration for a logger. This is placed in
+// internal so sub-packages can reset the state for tests.
+type LoggerState struct {
+	// ConfigureLoggingOnce is set when the first [slog.Logger] is created from
+	// calling [New] or when [SetDefaults] is called. This freezes all variables
+	// below:
+	ConfigureLoggingOnce sync.Once
+	// Lvl is the [slog.Level] that the logger should log at.
+	Lvl slog.Level
+	// LoggingEnabled is true if the logger should log.
+	LoggingEnabled bool
+	// The handler used for logging.
+	Handler slog.Handler
+}

@@ -4,6 +4,7 @@
         "schedule:weekly",
         ":disableDependencyDashboard"
     ],
+    "ignoreDeps": [],
     "semanticCommits": false,
     "postUpdateOptions": [
         "gomodTidy"
@@ -16,7 +17,7 @@
     "groupName": "all",
     "force": {
         "constraints": {
-            "go": "1.20"
+            "go": "1.21"
         }
     }
 }

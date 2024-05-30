@@ -1,4 +1,4 @@
-// Copyright 2022, Google Inc.
+// Copyright 2024, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,37 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package internal
+//go:build go1.23
 
-// Version is the current tagged release of the library.
-const Version = "2.13.0"
+// Package iterator contains helper for working with iterators. It is meant for
+// internal use only by the Go Client Libraries.
+package iterator
+
+import (
+	"iter"
+
+	otherit "google.golang.org/api/iterator"
+)
+
+// RangeAdapter transforms client iterator type into a [iter.Seq2] that can
+// be used with Go's range expressions.
+//
+// This is for internal use only.
+func RangeAdapter[T any](next func() (T, error)) iter.Seq2[T, error] {
+	var err error
+	return func(yield func(T, error) bool) {
+		for {
+			if err != nil {
+				return
+			}
+			var resp T
+			resp, err = next()
+			if err == otherit.Done {
+				return
+			}
+			if !yield(resp, err) {
+				return
+			}
+		}
+	}
+}

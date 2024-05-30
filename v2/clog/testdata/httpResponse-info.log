@@ -1,0 +1,1 @@
+{"message":"msg","response":{"status":"200"},"severity":"INFO","sourceLocation":{"function":"github.com/googleapis/gax-go/v2/clog.TestLog_dynamicHTTPResponse_info"}}

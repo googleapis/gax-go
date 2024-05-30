@@ -1,0 +1,1 @@
+{"message":"msg","response":{"payload":"{\"title\":\"The book\",\"author\":\"The author\"}"},"severity":"DEBUG","sourceLocation":{"function":"github.com/googleapis/gax-go/v2/clog/cloggrpc.TestLog_protoMessageResponseDebug"}}

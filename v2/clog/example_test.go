@@ -1,4 +1,4 @@
-// Copyright 2022, Google Inc.
+// Copyright 2024, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,44 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package internal
+package clog_test
 
-// Version is the current tagged release of the library.
-const Version = "2.13.0"
+import (
+	"log/slog"
+	"os"
+
+	"github.com/googleapis/gax-go/v2/clog"
+)
+
+func ExampleSetDefaults_enable() {
+	clog.SetDefaults(&clog.DefaultOptions{
+		EnableLogging: true,
+	})
+
+	// Use the Go SDK as normal.
+}
+
+func ExampleSetDefaults_toFile() {
+	// Create a temp file to log to
+	f, _ := os.CreateTemp("", "app.log")
+	defer f.Close()
+
+	clog.SetDefaults(&clog.DefaultOptions{
+		EnableLogging: true,
+		Writer:        f,
+	})
+
+	// Use the Go SDK as normal.
+}
+
+func ExampleSetDefaults_setLevel() {
+	clog.SetDefaults(&clog.DefaultOptions{
+		EnableLogging: true,
+		// Note, setting the logging level to `debug` will cause
+		// request/response payloads to be logged as well as headers like the
+		// `Authorization` header.
+		Level: slog.LevelDebug,
+	})
+
+	// Use the Go SDK as normal.
+}

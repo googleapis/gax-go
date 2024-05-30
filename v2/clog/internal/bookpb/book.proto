@@ -1,4 +1,4 @@
-// Copyright 2022, Google Inc.
+// Copyright 2024, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,17 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package internal
+syntax = "proto3";
 
-// Version is the current tagged release of the library.
-const Version = "2.13.0"
+package book;
+
+option go_package = "github.com/googleapis/gax-go/v2/clog/internal/bookpb;bookpb";
+
+// A single book in the library.
+message Book {
+  // The title of the book.
+  string title = 1;
+
+  // The name of the book author.
+  string author = 2;
+}

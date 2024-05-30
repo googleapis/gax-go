@@ -1,0 +1,3 @@
+{"message":"one","severity":"INFO","sourceLocation":{"function":"github.com/googleapis/gax-go/v2/clog.TestLog_basic"}}
+{"message":"two","severity":"INFO","sourceLocation":{"function":"github.com/googleapis/gax-go/v2/clog.TestLog_basic"}}
+{"message":"three","severity":"INFO","sourceLocation":{"function":"github.com/googleapis/gax-go/v2/clog.TestLog_basic"}}

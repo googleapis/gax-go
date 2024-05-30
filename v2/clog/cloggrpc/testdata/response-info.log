@@ -1,0 +1,1 @@
+{"message":"msg","response":"[redacted]","severity":"INFO","sourceLocation":{"function":"github.com/googleapis/gax-go/v2/clog/cloggrpc.TestLog_protoMessageResponseInfo"}}

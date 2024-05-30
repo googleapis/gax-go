@@ -1,4 +1,4 @@
-// Copyright 2022, Google Inc.
+// Copyright 2024, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,49 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-package internal
+//go:build go1.23
 
-// Version is the current tagged release of the library.
-const Version = "2.13.0"
+package iterator_test
+
+import (
+	"fmt"
+	"iter"
+
+	"github.com/googleapis/gax-go/v2/iterator"
+	otherit "google.golang.org/api/iterator"
+)
+
+type exampleType struct {
+	data []int
+	i    int
+}
+
+func (t *exampleType) next() (int, error) {
+	var v int
+	if t.i == len(t.data) {
+		return v, otherit.Done
+	}
+	v = t.data[t.i]
+	t.i++
+	return v, nil
+}
+
+func (t *exampleType) All() iter.Seq2[int, error] {
+	return iterator.RangeAdapter[int](t.next)
+}
+
+func ExampleRangeAdapter() {
+	t := &exampleType{
+		data: []int{1, 2, 3},
+	}
+	for v, err := range t.All() {
+		if err != nil {
+			// TODO: handle error
+		}
+		fmt.Println(v)
+	}
+	// Output:
+	// 1
+	// 2
+	// 3
+}
