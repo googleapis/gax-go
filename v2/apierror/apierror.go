@@ -207,7 +207,11 @@ func (a *APIError) Error() string {
 		// an ugly way.
 		msg = fmt.Sprintf("googleapi: Error %d: %s", a.httpErr.Code, a.httpErr.Message)
 	} else if a.status != nil {
-		msg = a.err.Error()
+		if a.err != nil {
+			msg = a.err.Error()
+		} else {
+			msg = a.status.Message()
+		}
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s\n%s", msg, a.details))
 }
