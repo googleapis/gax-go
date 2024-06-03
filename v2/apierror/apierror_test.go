@@ -465,29 +465,55 @@ func TestParseError(t *testing.T) {
 	se := errors.New("standard error")
 
 	tests := []struct {
-		source error
-		apierr *APIError
-		b      bool
+		name       string
+		source     error
+		wantErr    *APIError
+		wantParsed bool
 	}{
-		{hae, &APIError{httpErr: hae, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}}, true},
-		{se, &APIError{err: se}, false},
+		{
+			name:       "with http ErrorInfo details",
+			source:     hae,
+			wantErr:    &APIError{httpErr: hae, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}},
+			wantParsed: true,
+		},
+		{
+			name:       "standard error no details",
+			source:     se,
+			wantErr:    &APIError{err: se},
+			wantParsed: false,
+		},
+		{
+			name:       "grpc status no details",
+			source:     haeS.Err(),
+			wantErr:    &APIError{httpErr: hae, status: haeS, details: ErrDetails{}},
+			wantParsed: true,
+		},
 	}
 
 	for _, tc := range tests {
 		// ParseError with wrap = true is covered by TestFromError, above.
-		got, apiB := ParseError(tc.source, false)
-		if tc.b != apiB {
-			t.Errorf("ParseError(%s, false): got %v, want %v", tc.apierr, apiB, tc.b)
+		got, gotParsed := ParseError(tc.source, false)
+		if tc.wantParsed != gotParsed {
+			t.Errorf("ParseError(%s, false): got %v, want %v", tc.wantErr, gotParsed, tc.wantParsed)
 		}
-		if tc.b {
-			if diff := cmp.Diff(got.details, tc.apierr.details, cmp.Comparer(proto.Equal)); diff != "" {
+		if got != nil {
+			if got.Error() == "" {
+				t.Errorf("got.Error(): got %q, want non-empty", got.Error())
+			}
+		}
+		if tc.wantParsed {
+			if diff := cmp.Diff(got.details, tc.wantErr.details, cmp.Comparer(proto.Equal)); diff != "" {
 				t.Errorf("got(-), want(+),: \n%s", diff)
 			}
-			if diff := cmp.Diff(got.status, tc.apierr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
+			if diff := cmp.Diff(got.status, tc.wantErr.status, cmp.Comparer(proto.Equal), cmp.AllowUnexported(status.Status{})); diff != "" {
 				t.Errorf("got(-), want(+),: \n%s", diff)
 			}
 			if got.err != nil {
 				t.Errorf("got %s, want nil", got.err)
+			}
+		} else {
+			if got != nil {
+				t.Errorf("got %s, want nil", got)
 			}
 		}
 	}
