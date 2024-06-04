@@ -122,6 +122,15 @@ func TestInsertMetadataIntoOutgoingContext(t *testing.T) {
 			clientHeaders: []string{"key_2", "val_23", "key_2", "val_24"},
 			want:          metadata.Pairs("key_1", "val_1", "key_2", "val_21", "key_2", "val_22", "key_2", "val_23", "key_2", "val_24"),
 		},
+		{
+			clientHeaders: []string{"x-goog-api-client", "val_23 val_22", "key_2", "val_24", "x-goog-api-client", "val_1"},
+			want:          metadata.Pairs("key_2", "val_24", "x-goog-api-client", "val_23 val_22 val_1"),
+		},
+		{
+			userHeaders:   []string{"key_2", "val_22", "x-goog-api-client", "val_1 val_2"},
+			clientHeaders: []string{"x-goog-api-client", "val_3 val_4", "key_2", "val_24", "x-goog-api-client", "val_11 val_22"},
+			want:          metadata.Pairs("key_2", "val_22", "key_2", "val_24", "x-goog-api-client", "val_1 val_2 val_3 val_4 val_11 val_22"),
+		},
 	} {
 		ctx := context.Background()
 		if tst.userMd != nil {
