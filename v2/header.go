@@ -170,15 +170,15 @@ func insertMetadata(ctx context.Context, keyvals ...string) metadata.MD {
 	var mergedXgoogHeader strings.Builder
 
 	for k, vals := range headers {
-		out[k] = append(out[k], vals...)
-
 		if k == xGoogHeader {
 			// Merge all values for the x-goog-api-client header set on the ctx.
 			for _, v := range vals {
 				mergedXgoogHeader.WriteString(v)
 				mergedXgoogHeader.WriteRune(' ')
 			}
+			continue
 		}
+		out[k] = append(out[k], vals...)
 	}
 	for i := 0; i < len(keyvals); i = i + 2 {
 		out[keyvals[i]] = append(out[keyvals[i]], keyvals[i+1])
