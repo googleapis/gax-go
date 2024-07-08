@@ -4,6 +4,9 @@
         "schedule:weekly",
         ":disableDependencyDashboard"
     ],
+    "ignoreDeps": [
+        "google.golang.org/grpc"
+    ],
     "semanticCommits": false,
     "postUpdateOptions": [
         "gomodTidy"
