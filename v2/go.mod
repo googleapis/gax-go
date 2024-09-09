@@ -4,10 +4,10 @@ go 1.21
 
 require (
 	github.com/google/go-cmp v0.6.0
-	google.golang.org/api v0.195.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20240827150818-7e3bb234dfed
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240827150818-7e3bb234dfed
-	google.golang.org/grpc v1.66.0
+	google.golang.org/api v0.196.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1
+	google.golang.org/grpc v1.66.1
 	google.golang.org/protobuf v1.34.2
 
 )
