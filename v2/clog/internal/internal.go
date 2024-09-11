@@ -34,6 +34,7 @@ import (
 	"sync"
 )
 
+// RedactedValue is the value to use in logs when an element is removed.
 const RedactedValue = "[redacted]"
 
 var (

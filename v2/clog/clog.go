@@ -55,8 +55,6 @@ const (
 	googMsgKey    = "message"
 	googSourceKey = "sourceLocation"
 	googTimeKey   = "timestamp"
-
-	redactedValue = "[redacted]"
 )
 
 // DefaultOptions used to configure global logger settings.
