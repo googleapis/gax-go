@@ -36,7 +36,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	internalclog "github.com/googleapis/gax-go/v2/clog/internal"
@@ -183,6 +185,23 @@ func TestLog_dynamicHTTPResponse_debug(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
 	logger.Log(ctx, DynamicLevel(), "msg", "response", HTTPResponse(response, body))
+	f.Close()
+	clogtest.DiffTest(t, f.Name(), golden)
+}
+
+func TestLog_HTTPRequest_formData(t *testing.T) {
+	golden := "httpRequest-form.log"
+	logger, f := setupLogger(t, golden, slog.LevelDebug)
+	ctx := context.Background()
+	form := url.Values{}
+	form.Add("foo", "bar")
+	form.Add("baz", "qux")
+	request, err := http.NewRequest(http.MethodPost, "https://example.com", strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Add("foo", "bar")
+	logger.Log(ctx, DynamicLevel(), "msg", "request", HTTPRequest(request, []byte(form.Encode())))
 	f.Close()
 	clogtest.DiffTest(t, f.Name(), golden)
 }

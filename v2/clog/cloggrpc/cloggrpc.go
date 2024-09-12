@@ -76,10 +76,14 @@ func (m *protoMessage) LogValue() slog.Value {
 					headerAttr = append(headerAttr, slog.String(k, strings.Join(v, ",")))
 				}
 			}
-			groupValueAtts = append(groupValueAtts, slog.Any("headers", headerAttr))
+			if len(headerAttr) > 0 {
+				groupValueAtts = append(groupValueAtts, slog.Any("headers", headerAttr))
+			}
 		}
-		b, _ := protojson.MarshalOptions{AllowPartial: true, UseEnumNumbers: true}.Marshal(m.msg)
-		groupValueAtts = append(groupValueAtts, slog.String("payload", string(b)))
+		mo := protojson.MarshalOptions{AllowPartial: true, UseEnumNumbers: true}
+		if b, err := mo.Marshal(m.msg); err == nil {
+			groupValueAtts = append(groupValueAtts, slog.String("payload", string(b)))
+		}
 	} else {
 		return slog.StringValue(internalclog.RedactedValue)
 	}

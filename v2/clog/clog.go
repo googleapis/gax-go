@@ -178,11 +178,18 @@ func (r *request) LogValue() slog.Value {
 		for k, val := range r.req.Header {
 			headerAttr = append(headerAttr, slog.String(k, strings.Join(val, ",")))
 		}
-		groupValueAtts = append(groupValueAtts, slog.Any("headers", headerAttr))
+		if len(headerAttr) > 0 {
+			groupValueAtts = append(groupValueAtts, slog.Any("headers", headerAttr))
+		}
 
-		buf := &bytes.Buffer{}
-		json.Compact(buf, r.payload)
-		groupValueAtts = append(groupValueAtts, slog.String("payload", buf.String()))
+		if len(r.payload) > 0 {
+			buf := &bytes.Buffer{}
+			if err := json.Compact(buf, r.payload); err != nil {
+				// Write raw payload incase of error
+				buf.Write(r.payload)
+			}
+			groupValueAtts = append(groupValueAtts, slog.String("payload", buf.String()))
+		}
 	}
 	return slog.GroupValue(groupValueAtts...)
 }
@@ -204,11 +211,18 @@ func (r *response) LogValue() slog.Value {
 		for k, val := range r.resp.Header {
 			headerAttr = append(headerAttr, slog.String(k, strings.Join(val, ",")))
 		}
-		groupValueAtts = append(groupValueAtts, slog.Any("headers", headerAttr))
+		if len(headerAttr) > 0 {
+			groupValueAtts = append(groupValueAtts, slog.Any("headers", headerAttr))
+		}
 
-		buf := &bytes.Buffer{}
-		json.Compact(buf, r.payload)
-		groupValueAtts = append(groupValueAtts, slog.String("payload", buf.String()))
+		if len(r.payload) > 0 {
+			buf := &bytes.Buffer{}
+			if err := json.Compact(buf, r.payload); err != nil {
+				// Write raw payload incase of error
+				buf.Write(r.payload)
+			}
+			groupValueAtts = append(groupValueAtts, slog.String("payload", buf.String()))
+		}
 	}
 	return slog.GroupValue(groupValueAtts...)
 }
