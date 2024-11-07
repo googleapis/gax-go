@@ -4,9 +4,7 @@
         "schedule:weekly",
         ":disableDependencyDashboard"
     ],
-    "ignoreDeps": [
-        "google.golang.org/grpc"
-    ],
+    "ignoreDeps": [],
     "semanticCommits": false,
     "postUpdateOptions": [
         "gomodTidy"
@@ -19,7 +17,7 @@
     "groupName": "all",
     "force": {
         "constraints": {
-            "go": "1.20"
+            "go": "1.21"
         }
     }
 }
