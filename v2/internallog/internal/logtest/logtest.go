@@ -27,7 +27,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Pacakage logtest is a helper for validating logging tests.
+// Package logtest is a helper for validating logging tests.
 //
 // To update conformance tests in this package run `go test -update_golden`
 package logtest
