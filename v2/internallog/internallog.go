@@ -53,7 +53,7 @@ func New(l *slog.Logger) *slog.Logger {
 }
 
 // HTTPRequest returns a lazily evaluated [slog.LogValuer] for a
-// [http.Response] and the associated body.
+// [http.Request] and the associated body.
 func HTTPRequest(req *http.Request, body []byte) slog.LogValuer {
 	return &request{
 		req:     req,
