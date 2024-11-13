@@ -1,0 +1,1 @@
+{"message":"msg","request":{"headers":{"Foo":"bar"},"method":"POST","payload":[{"secret":"shh, it's a secret"},{"secret":"and, another"}],"url":"https://example.com"},"severity":"DEBUG"}

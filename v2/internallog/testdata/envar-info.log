@@ -1,0 +1,3 @@
+{"message":"one","severity":"ERROR"}
+{"message":"two","severity":"INFO"}
+{"message":"three","severity":"WARN"}

@@ -1,0 +1,1 @@
+{"message":"msg","request":{"headers":{"foo":"bar"},"payload":{"author":"The author","title":"The book"}},"severity":"DEBUG"}
