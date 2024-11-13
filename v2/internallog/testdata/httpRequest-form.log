@@ -1,0 +1,1 @@
+{"message":"msg","request":{"headers":{"Foo":"bar"},"method":"POST","payload":"baz=qux\u0026foo=bar","url":"https://example.com"},"severity":"DEBUG"}
