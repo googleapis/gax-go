@@ -35,6 +35,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	// A workaround to fix some module ambiguity in tests
+	_ "google.golang.org/genproto/googleapis/type/color"
 )
 
 func TestAll(t *testing.T) {
