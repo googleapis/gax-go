@@ -1,13 +1,15 @@
 module github.com/googleapis/gax-go/v2
 
-go 1.22
+go 1.22.7
+
+toolchain go1.22.11
 
 require (
 	github.com/google/go-cmp v0.6.0
-	google.golang.org/api v0.218.0
-	google.golang.org/genproto v0.0.0-20250124145028-65684f501c47
-	google.golang.org/genproto/googleapis/api v0.0.0-20250124145028-65684f501c47
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250124145028-65684f501c47
+	google.golang.org/api v0.219.0
+	google.golang.org/genproto v0.0.0-20250127172529-29210b9bc287
+	google.golang.org/genproto/googleapis/api v0.0.0-20250127172529-29210b9bc287
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.4
 
