@@ -36,6 +36,7 @@
 package apierror
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -203,15 +204,57 @@ func (a *APIError) Unwrap() error {
 func (a *APIError) Error() string {
 	var msg string
 	if a.httpErr != nil {
-		// Truncate the googleapi.Error message because it dumps the Details in
+		heMsg := a.httpErr.Message
+		if heMsg == "" {
+			heMsg = messageFromBody(a.httpErr.Body)
+		}
+		// Truncate the googleapi.Error message because it may contain all Details in
 		// an ugly way.
-		msg = fmt.Sprintf("googleapi: Error %d: %s", a.httpErr.Code, a.httpErr.Message)
+		msg = fmt.Sprintf("googleapi: Error %d: %s", a.httpErr.Code, heMsg)
 	} else if a.status != nil && a.err != nil {
 		msg = a.err.Error()
 	} else if a.status != nil {
 		msg = a.status.Message()
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s\n%s", msg, a.details))
+}
+
+// messageFromBody attempts to get the error message from body. The body
+// may be a JSON object or JSON array, or may be a text string.
+func messageFromBody(body string) string {
+	peekChar := body[0]
+	if peekChar == '{' {
+		// JSON object
+		var m map[string]any
+		if err := json.Unmarshal([]byte(body), &m); err == nil {
+			if s := messageFromJSON(m); s != "" {
+				return s
+			}
+		}
+	} else if peekChar == '[' {
+		// JSON array
+		var m []map[string]any
+		if err := json.Unmarshal([]byte(body), &m); err == nil {
+			if len(m) > 0 {
+				if s := messageFromJSON(m[0]); s != "" {
+					return s
+				}
+			}
+		}
+	}
+	// Assume non-JSON plain text string.
+	return body
+}
+
+func messageFromJSON(m map[string]any) string {
+	e, ok := m["error"].(map[string]any)
+	if ok {
+		s, ok := e["message"].(string)
+		if ok {
+			return s
+		}
+	}
+	return ""
 }
 
 // GRPCStatus extracts the underlying gRPC Status error.

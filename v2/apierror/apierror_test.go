@@ -33,6 +33,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -222,11 +223,22 @@ func TestError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	haeS := status.New(codes.Unknown, "just because")
 	hae := &googleapi.Error{
 		Message: "just because",
 		Body:    string(data),
 	}
-	haeS := status.New(codes.Unknown, "just because")
+	jsonData := `{ "error" : { "code" : 403, "message" : "permission denied in JSON", "status" : "PERMISSION_DENIED" } }`
+	// missing message, see https://github.com/googleapis/gax-go/issues/389
+	hae2 := &googleapi.Error{
+		Message: "",
+		Body:    jsonData,
+	}
+	// Body JSON error may be wrapped in an array.
+	hae3 := &googleapi.Error{
+		Message: "",
+		Body:    fmt.Sprintf("[ %s ]", jsonData),
+	}
 
 	tests := []struct {
 		apierr *APIError
@@ -243,6 +255,8 @@ func TestError(t *testing.T) {
 		{&APIError{err: bS.Err(), status: uS, details: ErrDetails{Unknown: uu}}, "unknown"},
 		{&APIError{err: bS.Err(), status: bS, details: ErrDetails{}}, "empty"},
 		{&APIError{err: hae, httpErr: hae, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}}, "http_err"},
+		{&APIError{err: hae2, httpErr: hae2, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}}, "http_err_body_json"},
+		{&APIError{err: hae3, httpErr: hae2, status: haeS, details: ErrDetails{ErrorInfo: httpErrInfo}}, "http_err_body_json"},
 	}
 	for _, tc := range tests {
 		t.Helper()
