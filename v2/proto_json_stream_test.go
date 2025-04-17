@@ -93,7 +93,7 @@ func TestRecv(t *testing.T) {
 		typ  protoreflect.MessageType
 	}{
 		{
-			name: "empty",
+			name: "empty_test",
 		},
 		{
 			name: "simple_locations",
