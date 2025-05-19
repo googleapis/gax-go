@@ -3,8 +3,8 @@ module github.com/googleapis/gax-go
 go 1.23.0
 
 require (
-	github.com/googleapis/gax-go/v2 v2.14.1
-	google.golang.org/grpc v1.72.0
+	github.com/googleapis/gax-go/v2 v2.14.2
+	google.golang.org/grpc v1.72.1
 )
 
 require (
