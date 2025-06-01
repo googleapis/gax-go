@@ -208,9 +208,14 @@ func TestError(t *testing.T) {
 	}
 	lS, _ := status.New(codes.Unknown, "Localized Message").WithDetails(lo)
 
-	var uu []interface{}
-	uu = append(uu, "unknown detail 1")
+	var uu []*Unknown
 	uS := status.New(codes.Unknown, "Unknown")
+	customError := &jsonerror.CustomError{
+		ErrorMessage: "unknown detail 1",
+	}
+	unknown := &Unknown{Message: customError}
+
+	uu = append(uu, unknown)
 
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
 	any, err := anypb.New(httpErrInfo)
@@ -381,7 +386,7 @@ func TestFromError(t *testing.T) {
 	msg := &descriptorpb.DescriptorProto{
 		Name: proto.String("Foo"),
 	}
-	u := []interface{}{msg}
+	u := []*Unknown{&Unknown{Message: msg}}
 	uS, _ := status.New(codes.Unknown, "test").WithDetails(msg)
 
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
