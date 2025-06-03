@@ -63,8 +63,20 @@ type ErrDetails struct {
 	LocalizedMessage    *errdetails.LocalizedMessage
 
 	// Unknown stores unidentifiable error details.
-	Unknown []interface{}
+	Unknown []*Unknown
 }
+
+type Unknown struct {
+	Message  proto.Message
+	TypeName string
+}
+
+// Alternate: TypeName as a Method (Computed on Demand)
+
+// func (e *Unknown) TypeName() string {
+// 	typeName := string(e.Message.ProtoReflect().Descriptor().FullName().Name())
+// 	return typeName
+// }
 
 // ErrMessageNotFound is used to signal ExtractProtoMessage found no matching messages.
 var ErrMessageNotFound = errors.New("message not found")
@@ -80,9 +92,9 @@ func (e ErrDetails) ExtractProtoMessage(v proto.Message) error {
 		return ErrMessageNotFound
 	}
 	for _, elem := range e.Unknown {
-		if elemProto, ok := elem.(proto.Message); ok {
-			if v.ProtoReflect().Type() == elemProto.ProtoReflect().Type() {
-				proto.Merge(v, elemProto)
+		if elem.Message != nil {
+			if v.ProtoReflect().Type() == elem.Message.ProtoReflect().Type() {
+				proto.Merge(v, elem.Message)
 				return nil
 			}
 		}
@@ -151,11 +163,18 @@ func (e ErrDetails) String() string {
 
 	}
 	if e.Unknown != nil {
-		var s []string
-		for _, x := range e.Unknown {
-			s = append(s, fmt.Sprintf("%v", x))
+		groupedUnknownDetails := make(map[string][]string)
+		for _, unknownError := range e.Unknown {
+			msgString := fmt.Sprintf("%s", unknownError.Message)
+			groupedUnknownDetails[unknownError.TypeName] = append(
+				groupedUnknownDetails[unknownError.TypeName],
+				msgString,
+			)
 		}
-		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s\n", strings.Join(s, " ")))
+		for typeName, messages := range groupedUnknownDetails {
+			joinedDesc := strings.Join(messages, " ")
+			d.WriteString(fmt.Sprintf("error details: name = %s desc = %s\n", typeName, joinedDesc))
+		}
 	}
 
 	if e.DebugInfo != nil {
@@ -319,7 +338,10 @@ func parseDetails(details []interface{}) ErrDetails {
 		case *errdetails.LocalizedMessage:
 			ed.LocalizedMessage = d
 		default:
-			ed.Unknown = append(ed.Unknown, d)
+			if msg, ok := d.(proto.Message); ok {
+				typeName := string(msg.ProtoReflect().Descriptor().FullName())
+				ed.Unknown = append(ed.Unknown, &Unknown{Message: msg, TypeName: typeName})
+			}
 		}
 	}
 
