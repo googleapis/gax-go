@@ -63,7 +63,7 @@ type ErrDetails struct {
 	LocalizedMessage    *errdetails.LocalizedMessage
 
 	// Unknown stores unidentifiable error details.
-	Unknown []*Unknown
+	Unknown []interface{}
 }
 
 type Unknown struct {
@@ -92,9 +92,9 @@ func (e ErrDetails) ExtractProtoMessage(v proto.Message) error {
 		return ErrMessageNotFound
 	}
 	for _, elem := range e.Unknown {
-		if elem.Message != nil {
-			if v.ProtoReflect().Type() == elem.Message.ProtoReflect().Type() {
-				proto.Merge(v, elem.Message)
+		if elemProto, ok := elem.(proto.Message); ok {
+			if v.ProtoReflect().Type() == elemProto.ProtoReflect().Type() {
+				proto.Merge(v, elemProto)
 				return nil
 			}
 		}
@@ -165,11 +165,14 @@ func (e ErrDetails) String() string {
 	if e.Unknown != nil {
 		groupedUnknownDetails := make(map[string][]string)
 		for _, unknownError := range e.Unknown {
-			msgString := fmt.Sprintf("%s", unknownError.Message)
-			groupedUnknownDetails[unknownError.TypeName] = append(
-				groupedUnknownDetails[unknownError.TypeName],
-				msgString,
-			)
+			msgString := fmt.Sprintf("%s", unknownError)
+			if elemProto, ok := unknownError.(proto.Message); ok {
+				typeName := string(elemProto.ProtoReflect().Descriptor().FullName().Name())
+				groupedUnknownDetails[typeName] = append(
+					groupedUnknownDetails[typeName],
+					msgString,
+				)
+			}
 		}
 		for typeName, messages := range groupedUnknownDetails {
 			joinedDesc := strings.Join(messages, " ")
@@ -338,10 +341,7 @@ func parseDetails(details []interface{}) ErrDetails {
 		case *errdetails.LocalizedMessage:
 			ed.LocalizedMessage = d
 		default:
-			if msg, ok := d.(proto.Message); ok {
-				typeName := string(msg.ProtoReflect().Descriptor().FullName())
-				ed.Unknown = append(ed.Unknown, &Unknown{Message: msg, TypeName: typeName})
-			}
+			ed.Unknown = append(ed.Unknown, d)
 		}
 	}
 
