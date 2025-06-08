@@ -66,6 +66,18 @@ type ErrDetails struct {
 	Unknown []interface{}
 }
 
+type Unknown struct {
+	Message  proto.Message
+	TypeName string
+}
+
+// Alternate: TypeName as a Method (Computed on Demand)
+
+// func (e *Unknown) TypeName() string {
+// 	typeName := string(e.Message.ProtoReflect().Descriptor().FullName().Name())
+// 	return typeName
+// }
+
 // ErrMessageNotFound is used to signal ExtractProtoMessage found no matching messages.
 var ErrMessageNotFound = errors.New("message not found")
 
@@ -151,11 +163,21 @@ func (e ErrDetails) String() string {
 
 	}
 	if e.Unknown != nil {
-		var s []string
-		for _, x := range e.Unknown {
-			s = append(s, fmt.Sprintf("%v", x))
+		groupedUnknownDetails := make(map[string][]string)
+		for _, unknownError := range e.Unknown {
+			msgString := fmt.Sprintf("%s", unknownError)
+			if elemProto, ok := unknownError.(proto.Message); ok {
+				typeName := string(elemProto.ProtoReflect().Descriptor().FullName().Name())
+				groupedUnknownDetails[typeName] = append(
+					groupedUnknownDetails[typeName],
+					msgString,
+				)
+			}
 		}
-		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s\n", strings.Join(s, " ")))
+		for typeName, messages := range groupedUnknownDetails {
+			joinedDesc := strings.Join(messages, " ")
+			d.WriteString(fmt.Sprintf("error details: name = %s desc = %s\n", typeName, joinedDesc))
+		}
 	}
 
 	if e.DebugInfo != nil {
