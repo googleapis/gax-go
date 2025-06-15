@@ -66,18 +66,6 @@ type ErrDetails struct {
 	Unknown []interface{}
 }
 
-type Unknown struct {
-	Message  proto.Message
-	TypeName string
-}
-
-// Alternate: TypeName as a Method (Computed on Demand)
-
-// func (e *Unknown) TypeName() string {
-// 	typeName := string(e.Message.ProtoReflect().Descriptor().FullName().Name())
-// 	return typeName
-// }
-
 // ErrMessageNotFound is used to signal ExtractProtoMessage found no matching messages.
 var ErrMessageNotFound = errors.New("message not found")
 
@@ -167,7 +155,7 @@ func (e ErrDetails) String() string {
 		for _, unknownError := range e.Unknown {
 			msgString := fmt.Sprintf("%s", unknownError)
 			if elemProto, ok := unknownError.(proto.Message); ok {
-				typeName := string(elemProto.ProtoReflect().Descriptor().FullName().Name())
+				typeName := string(elemProto.ProtoReflect().Descriptor().FullName())
 				groupedUnknownDetails[typeName] = append(
 					groupedUnknownDetails[typeName],
 					msgString,
