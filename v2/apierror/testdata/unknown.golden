@@ -1,2 +1,2 @@
 rpc error: code = InvalidArgument desc = br
-error details: name = CustomError desc = error_message:"unknown detail 1"
+error details: name = error.CustomError desc = error_message:"unknown detail 1"
