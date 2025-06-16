@@ -209,7 +209,10 @@ func TestError(t *testing.T) {
 	lS, _ := status.New(codes.Unknown, "Localized Message").WithDetails(lo)
 
 	var uu []interface{}
-	uu = append(uu, "unknown detail 1")
+	customError := &jsonerror.CustomError{
+		ErrorMessage: "unknown detail 1",
+	}
+	uu = append(uu, customError)
 	uS := status.New(codes.Unknown, "Unknown")
 
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}

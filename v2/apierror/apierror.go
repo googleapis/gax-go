@@ -151,11 +151,21 @@ func (e ErrDetails) String() string {
 
 	}
 	if e.Unknown != nil {
-		var s []string
-		for _, x := range e.Unknown {
-			s = append(s, fmt.Sprintf("%v", x))
+		groupedUnknownDetails := make(map[string][]string)
+		for _, unknownError := range e.Unknown {
+			msgString := fmt.Sprintf("%s", unknownError)
+			if elemProto, ok := unknownError.(proto.Message); ok {
+				typeName := string(elemProto.ProtoReflect().Descriptor().FullName())
+				groupedUnknownDetails[typeName] = append(
+					groupedUnknownDetails[typeName],
+					msgString,
+				)
+			}
 		}
-		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s\n", strings.Join(s, " ")))
+		for typeName, messages := range groupedUnknownDetails {
+			joinedDesc := strings.Join(messages, " ")
+			d.WriteString(fmt.Sprintf("error details: name = %s desc = %s\n", typeName, joinedDesc))
+		}
 	}
 
 	if e.DebugInfo != nil {
