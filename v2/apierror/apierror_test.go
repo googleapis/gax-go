@@ -586,11 +586,8 @@ func TestHTTPErrorAsStatus(t *testing.T) {
 		wantCode codes.Code
 	}{
 		{
-			name: "no code",
-			err: &googleapi.Error{
-				Message: "message",
-				Body:    "body",
-			},
+			name:     "no code",
+			err:      &googleapi.Error{},
 			wantCode: codes.Unknown,
 		},
 		{
@@ -598,7 +595,6 @@ func TestHTTPErrorAsStatus(t *testing.T) {
 			err: &googleapi.Error{
 				Code:    http.StatusNotFound,
 				Message: "message",
-				Body:    "body",
 			},
 			wantCode: codes.NotFound,
 		},
@@ -607,34 +603,27 @@ func TestHTTPErrorAsStatus(t *testing.T) {
 			err: &googleapi.Error{
 				Code:    http.StatusUnauthorized,
 				Message: "message",
-				Body:    "body",
 			},
 			wantCode: codes.Unauthenticated,
 		},
 		{
 			name: "2xx range",
 			err: &googleapi.Error{
-				Code:    http.StatusPartialContent,
-				Message: "message",
-				Body:    "body",
+				Code: http.StatusPartialContent,
 			},
 			wantCode: codes.OK,
 		},
 		{
 			name: "4xx range",
 			err: &googleapi.Error{
-				Code:    http.StatusLengthRequired,
-				Message: "message",
-				Body:    "body",
+				Code: http.StatusLengthRequired,
 			},
 			wantCode: codes.FailedPrecondition,
 		},
 		{
 			name: "5xx range",
 			err: &googleapi.Error{
-				Code:    http.StatusLoopDetected,
-				Message: "message",
-				Body:    "body",
+				Code: http.StatusLoopDetected,
 			},
 			wantCode: codes.Internal,
 		},
