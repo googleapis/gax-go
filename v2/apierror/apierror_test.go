@@ -34,6 +34,7 @@ import (
 	"errors"
 	"flag"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 	"testing"
 
@@ -575,5 +576,81 @@ func TestHTTPCode(t *testing.T) {
 				t.Errorf("HTTPCode() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHTTPErrorAsStatus(t *testing.T) {
+	testCases := []struct {
+		name     string
+		err      *googleapi.Error
+		wantCode codes.Code
+	}{
+		{
+			name: "no code",
+			err: &googleapi.Error{
+				Message: "message",
+				Body:    "body",
+			},
+			wantCode: codes.Unknown,
+		},
+		{
+			name: "not found",
+			err: &googleapi.Error{
+				Code:    http.StatusNotFound,
+				Message: "message",
+				Body:    "body",
+			},
+			wantCode: codes.NotFound,
+		},
+		{
+			name: "unauthorized",
+			err: &googleapi.Error{
+				Code:    http.StatusUnauthorized,
+				Message: "message",
+				Body:    "body",
+			},
+			wantCode: codes.Unauthenticated,
+		},
+		{
+			name: "2xx range",
+			err: &googleapi.Error{
+				Code:    http.StatusPartialContent,
+				Message: "message",
+				Body:    "body",
+			},
+			wantCode: codes.OK,
+		},
+		{
+			name: "4xx range",
+			err: &googleapi.Error{
+				Code:    http.StatusLengthRequired,
+				Message: "message",
+				Body:    "body",
+			},
+			wantCode: codes.FailedPrecondition,
+		},
+		{
+			name: "5xx range",
+			err: &googleapi.Error{
+				Code:    http.StatusLoopDetected,
+				Message: "message",
+				Body:    "body",
+			},
+			wantCode: codes.Internal,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			apiErr, ok := FromError(tc.err)
+			if !ok {
+				t.Error("FromError failed to transform error")
+			}
+			st := apiErr.GRPCStatus()
+			if st.Code() != tc.wantCode {
+				t.Errorf("failure, got %s want %s", st.Code().String(), tc.wantCode.String())
+			}
+		})
+
 	}
 }
