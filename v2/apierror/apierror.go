@@ -254,7 +254,8 @@ func (a *APIError) Error() string {
 //
 // For errors that originated as an HTTP-based googleapi.Error, GRPCStatus()
 // returns a status that attempts to map from the original HTTP code to an
-// equivalent gRPC status code.
+// equivalent gRPC status code.  For use cases where you want to avoid this
+// behavior, error unwrapping can be used.
 func (a *APIError) GRPCStatus() *status.Status {
 	return a.status
 }
