@@ -4,10 +4,10 @@ go 1.23.0
 
 require (
 	github.com/google/go-cmp v0.7.0
-	google.golang.org/api v0.246.0
-	google.golang.org/genproto v0.0.0-20250804133106-a7a43d27e69b
-	google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b
+	google.golang.org/api v0.247.0
+	google.golang.org/genproto 5f3141c8851a
+	google.golang.org/genproto/googleapis/api 5f3141c8851a
+	google.golang.org/genproto/googleapis/rpc 5f3141c8851a
 	google.golang.org/grpc v1.74.2
 	google.golang.org/protobuf v1.36.7
 
