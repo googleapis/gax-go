@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/googleapis/gax-go/v2 v2.15.0
-	google.golang.org/grpc v1.74.2
+	google.golang.org/grpc v1.75.0
 )
 
 require (
