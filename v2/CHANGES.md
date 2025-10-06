@@ -1,4 +1,4 @@
-# Changelog
+# Changes
 
 ## [2.15.0](https://github.com/googleapis/gax-go/compare/v2.14.2...v2.15.0) (2025-07-09)
 
