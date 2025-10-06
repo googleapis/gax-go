@@ -1,0 +1,7 @@
+image: us-central1-docker.pkg.dev/cloud-sdk-librarian-prod/images-prod/librarian-go:latest
+libraries:
+  - id: v2
+    version: 2.15.0
+    source_roots:
+      - 'v2'
+    tag_format: 'v{version}'
