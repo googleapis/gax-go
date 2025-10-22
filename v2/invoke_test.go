@@ -216,7 +216,7 @@ func TestInvokeWithTimeout(t *testing.T) {
 	}
 
 	bg := context.Background()
-	preset, pcc := context.WithTimeout(bg, 10*time.Millisecond)
+	preset, pcc := context.WithTimeout(bg, time.Second)
 	defer pcc()
 
 	for _, tst := range []struct {
@@ -236,14 +236,14 @@ func TestInvokeWithTimeout(t *testing.T) {
 		{
 			name:    "respect_context_deadline",
 			timeout: 1 * time.Millisecond,
-			sleep:   3 * time.Millisecond,
+			sleep:   300 * time.Millisecond,
 			ctx:     preset,
 			want:    nil,
 		},
 		{
 			name:    "with_timeout_deadline_exceeded",
 			timeout: 1 * time.Millisecond,
-			sleep:   3 * time.Millisecond,
+			sleep:   300 * time.Millisecond,
 			ctx:     bg,
 			want:    context.DeadlineExceeded,
 		},
