@@ -31,7 +31,6 @@ package gax
 
 import (
 	"os"
-	"sync"
 	"testing"
 )
 
@@ -90,8 +89,7 @@ func TestIsFeatureEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset the global state for each test to ensure isolation
-			featureEnabledStore = nil
-			featureEnabledOnce = sync.Once{}
+			TestOnlyResetIsFeatureEnabled()
 
 			if tt.envValue != "" {
 				os.Setenv(tt.envVar, tt.envValue)
@@ -113,9 +111,7 @@ func TestIsFeatureEnabled(t *testing.T) {
 
 	// Test that subsequent calls to IsFeatureEnabled do not re-read environment variables
 	t.Run("CachingPreventsReread", func(t *testing.T) {
-		// Clear previous state
-		featureEnabledStore = nil
-		featureEnabledOnce = sync.Once{}
+		TestOnlyResetIsFeatureEnabled()
 
 		// Set an environment variable for the first call
 		os.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_CACHED_FEATURE", "true")
@@ -141,9 +137,7 @@ func TestIsFeatureEnabled(t *testing.T) {
 
 	// Test with multiple environment variables set
 	t.Run("MultipleEnvVars", func(t *testing.T) {
-		// Clear previous state
-		featureEnabledStore = nil
-		featureEnabledOnce = sync.Once{}
+		TestOnlyResetIsFeatureEnabled()
 
 		os.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_FEATURE1", "true")
 		os.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_FEATURE2", "false")

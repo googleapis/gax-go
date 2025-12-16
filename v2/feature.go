@@ -63,3 +63,10 @@ func IsFeatureEnabled(name string) bool {
 	})
 	return featureEnabledStore[name]
 }
+
+// TestOnlyResetIsFeatureEnabled is for testing purposes only. It resets the cached
+// feature flags, allowing environment variables to be re-read on the next call to IsFeatureEnabled.
+func TestOnlyResetIsFeatureEnabled() {
+	featureEnabledOnce = sync.Once{}
+	featureEnabledStore = nil
+}
