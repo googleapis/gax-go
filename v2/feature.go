@@ -66,6 +66,9 @@ func IsFeatureEnabled(name string) bool {
 
 // TestOnlyResetIsFeatureEnabled is for testing purposes only. It resets the cached
 // feature flags, allowing environment variables to be re-read on the next call to IsFeatureEnabled.
+// This function is not thread-safe; if another goroutine reads a feature after this
+// function is called but before the `featureEnabledOnce` is re-initialized by IsFeatureEnabled,
+// it may see an inconsistent state.
 func TestOnlyResetIsFeatureEnabled() {
 	featureEnabledOnce = sync.Once{}
 	featureEnabledStore = nil
