@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/google/go-cmp v0.7.0
-	google.golang.org/api v0.257.0
+	google.golang.org/api v0.258.0
 	google.golang.org/genproto v0.0.0-20251213004720-97cd9d5aeac2
 	google.golang.org/genproto/googleapis/api v0.0.0-20251213004720-97cd9d5aeac2
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251213004720-97cd9d5aeac2
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 )
