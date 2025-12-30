@@ -31,14 +31,31 @@ package gax
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/googleapis/gax-go/v2/apierror"
+	"google.golang.org/grpc/metadata"
 )
 
 // APICall is a user defined call stub.
 type APICall func(context.Context, CallSettings) error
+
+type attemptKey struct{}
+
+// WithAttemptCount returns a new context with the attempt count attached.
+func WithAttemptCount(ctx context.Context, count int) context.Context {
+	// For gRPC, we also append to metadata so it's visible to StatsHandlers
+	ctx = metadata.AppendToOutgoingContext(ctx, "gcp.grpc.resend_count", strconv.Itoa(count))
+	return context.WithValue(ctx, attemptKey{}, count)
+}
+
+// AttemptCountFromContext returns the attempt count from the context, if present.
+func AttemptCountFromContext(ctx context.Context) (int, bool) {
+	v, ok := ctx.Value(attemptKey{}).(int)
+	return v, ok
+}
 
 // Invoke calls the given APICall, performing retries as specified by opts, if
 // any.
@@ -78,8 +95,14 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		ctx = c
 	}
 
+	attempt := 0
+	tracingEnabled := IsFeatureEnabled("TRACING")
 	for {
-		err := call(ctx, settings)
+		ctxToUse := ctx
+		if tracingEnabled {
+			ctxToUse = WithAttemptCount(ctx, attempt)
+		}
+		err := call(ctxToUse, settings)
 		if err == nil {
 			return nil
 		}
@@ -110,5 +133,6 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		} else if err = sp(ctx, d); err != nil {
 			return err
 		}
+		attempt++
 	}
 }

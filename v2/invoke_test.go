@@ -32,6 +32,7 @@ package gax
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -260,6 +261,47 @@ func TestInvokeWithTimeout(t *testing.T) {
 
 			if err != tst.want {
 				t.Errorf("found error %v, want %v", err, tst.want)
+			}
+		})
+	}
+}
+
+func TestInvokeAttemptCount(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		t.Run(fmt.Sprintf("enabled=%v", enabled), func(t *testing.T) {
+			TestOnlyResetIsFeatureEnabled()
+			defer TestOnlyResetIsFeatureEnabled()
+
+			if enabled {
+				t.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_TRACING", "true")
+			} else {
+				t.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_TRACING", "false")
+			}
+
+			const target = 3
+			var attempts []int
+			calls := 0
+			apiCall := func(ctx context.Context, _ CallSettings) error {
+				calls++
+				if count, ok := AttemptCountFromContext(ctx); ok {
+					attempts = append(attempts, count)
+				}
+				if calls < target {
+					return errors.New("retry")
+				}
+				return nil
+			}
+			var settings CallSettings
+			WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
+			var sp recordSleeper
+			invoke(context.Background(), apiCall, settings, sp.sleep)
+
+			var want []int
+			if enabled {
+				want = []int{0, 1, 2}
+			}
+			if diff := cmp.Diff(want, attempts); diff != "" {
+				t.Errorf("attempt count mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
