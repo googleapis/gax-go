@@ -1,4 +1,4 @@
-# Changes
+# Changes    
 
 ## [2.16.0](https://github.com/googleapis/google-cloud-go/releases/tag/v2.16.0) (2025-12-17)
 
