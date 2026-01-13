@@ -22,22 +22,30 @@ try3() { eval "$*" || eval "$*" || eval "$*"; }
 try3 go mod download
 ./internal/kokoro/vet.sh
 
-go get github.com/jstemmer/go-junit-report
 
 set +e
 
-go test -race -v . 2>&1 | tee sponge_log.log
-cat sponge_log.log | go-junit-report -set-exit-code > sponge_log.xml
-exit_code=$?
+go_test_args=("-race" "-timeout" "10m")
+# test v1
+gotestsum --packages="./..." \
+    --junitfile sponge_log.xml \
+    --format standard-verbose \
+    -- "${go_test_args[@]}" 2>&1 | tee sponge_log.log
+exit_code=$(($exit_code + $?))
+
+
+# switch to v2 and test
 
 cd v2
 set -e
 try3 go mod download
 set +e
 
-go test -race -v . 2>&1 | tee sponge_log.log
-cat sponge_log.log | go-junit-report -set-exit-code > sponge_log.xml
-exit_code=$(($exit_code+$?))
+gotestsum --packages="./..." \
+    --junitfile sponge_log.xml \
+    --format standard-verbose \
+    -- "${go_test_args[@]}" 2>&1 | tee sponge_log.log
+exit_code=$(($exit_code + $?))
 
 # Send logs to Flaky Bot for continuous builds.
 if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"continuous"* ]]; then
