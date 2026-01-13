@@ -33,6 +33,20 @@ gotestsum --packages="./..." \
     -- "${go_test_args[@]}" 2>&1 | tee sponge_log.log
 exit_code=$(($exit_code + $?))
 
+
+# switch to v2 and test
+
+cd v2
+set -e
+try3 go mod download
+set +e
+
+gotestsum --packages="./..." \
+    --junitfile sponge_log.xml \
+    --format standard-verbose \
+    -- "${go_test_args[@]}" 2>&1 | tee sponge_log.log
+exit_code=$(($exit_code + $?))
+
 # Send logs to Flaky Bot for continuous builds.
 if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"continuous"* ]]; then
   cd ..
