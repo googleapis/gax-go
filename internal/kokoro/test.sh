@@ -25,24 +25,9 @@ try3 go mod download
 
 set +e
 
-go_test_args=("-race")
-
+go_test_args=("-race" "-timeout" "10m")
 # test v1
-gotestsum --packages="./" \
-    --junitfile sponge_log.xml \
-    --format standard-verbose \
-    -- "${go_test_args[@]}" 2>&1 | tee sponge_log.log
-exit_code=$(($exit_code + $?))
-
-
-# switch to v2 and test
-
-cd v2
-set -e
-try3 go mod download
-set +e
-
-gotestsum --packages="./" \
+gotestsum --packages="./..." \
     --junitfile sponge_log.xml \
     --format standard-verbose \
     -- "${go_test_args[@]}" 2>&1 | tee sponge_log.log
