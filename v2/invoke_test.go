@@ -33,6 +33,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/googleapis/gax-go/v2/apierror"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -283,8 +285,11 @@ func TestInvokeRetryCount(t *testing.T) {
 			calls := 0
 			apiCall := func(ctx context.Context, _ CallSettings) error {
 				calls++
-				if count, ok := retryCountFromContext(ctx); ok {
-					retryCounts = append(retryCounts, count)
+				md, _ := metadata.FromOutgoingContext(ctx)
+				if vals := md["gcp.grpc.resend_count"]; len(vals) > 0 {
+					if count, err := strconv.Atoi(vals[0]); err == nil {
+						retryCounts = append(retryCounts, count)
+					}
 				}
 				if calls < target {
 					return errors.New("retry")

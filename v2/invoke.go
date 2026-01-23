@@ -42,21 +42,12 @@ import (
 // APICall is a user defined call stub.
 type APICall func(context.Context, CallSettings) error
 
-type retryCountKey struct{}
-
 // withRetryCount returns a new context with the retry count attached.
 // retryCount is the number of retries that have been attempted.
 // The initial request is retryCount = 0.
 func withRetryCount(ctx context.Context, retryCount int) context.Context {
 	// For gRPC, we also append to metadata so it's visible to StatsHandlers
-	ctx = metadata.AppendToOutgoingContext(ctx, "gcp.grpc.resend_count", strconv.Itoa(retryCount))
-	return context.WithValue(ctx, retryCountKey{}, retryCount)
-}
-
-// retryCountFromContext returns the retry count from the context, if present.
-func retryCountFromContext(ctx context.Context) (int, bool) {
-	v, ok := ctx.Value(retryCountKey{}).(int)
-	return v, ok
+	return metadata.AppendToOutgoingContext(ctx, "gcp.grpc.resend_count", strconv.Itoa(retryCount))
 }
 
 // Invoke calls the given APICall, performing retries as specified by opts, if
