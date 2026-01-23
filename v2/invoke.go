@@ -42,18 +42,20 @@ import (
 // APICall is a user defined call stub.
 type APICall func(context.Context, CallSettings) error
 
-type attemptKey struct{}
+type retryCountKey struct{}
 
-// WithAttemptCount returns a new context with the attempt count attached.
-func WithAttemptCount(ctx context.Context, count int) context.Context {
+// withRetryCount returns a new context with the retry count attached.
+// retryCount is the number of retries that have been attempted.
+// The initial request is retryCount = 0.
+func withRetryCount(ctx context.Context, retryCount int) context.Context {
 	// For gRPC, we also append to metadata so it's visible to StatsHandlers
-	ctx = metadata.AppendToOutgoingContext(ctx, "gcp.grpc.resend_count", strconv.Itoa(count))
-	return context.WithValue(ctx, attemptKey{}, count)
+	ctx = metadata.AppendToOutgoingContext(ctx, "gcp.grpc.resend_count", strconv.Itoa(retryCount))
+	return context.WithValue(ctx, retryCountKey{}, retryCount)
 }
 
-// AttemptCountFromContext returns the attempt count from the context, if present.
-func AttemptCountFromContext(ctx context.Context) (int, bool) {
-	v, ok := ctx.Value(attemptKey{}).(int)
+// retryCountFromContext returns the retry count from the context, if present.
+func retryCountFromContext(ctx context.Context) (int, bool) {
+	v, ok := ctx.Value(retryCountKey{}).(int)
 	return v, ok
 }
 
@@ -95,12 +97,12 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		ctx = c
 	}
 
-	attempt := 0
+	retryCount := 0
 	tracingEnabled := IsFeatureEnabled("TRACING")
 	for {
 		ctxToUse := ctx
 		if tracingEnabled {
-			ctxToUse = WithAttemptCount(ctx, attempt)
+			ctxToUse = withRetryCount(ctx, retryCount)
 		}
 		err := call(ctxToUse, settings)
 		if err == nil {
@@ -133,6 +135,6 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		} else if err = sp(ctx, d); err != nil {
 			return err
 		}
-		attempt++
+		retryCount++
 	}
 }

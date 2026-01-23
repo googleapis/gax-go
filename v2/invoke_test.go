@@ -266,7 +266,7 @@ func TestInvokeWithTimeout(t *testing.T) {
 	}
 }
 
-func TestInvokeAttemptCount(t *testing.T) {
+func TestInvokeRetryCount(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		t.Run(fmt.Sprintf("enabled=%v", enabled), func(t *testing.T) {
 			TestOnlyResetIsFeatureEnabled()
@@ -279,12 +279,12 @@ func TestInvokeAttemptCount(t *testing.T) {
 			}
 
 			const target = 3
-			var attempts []int
+			var retryCounts []int
 			calls := 0
 			apiCall := func(ctx context.Context, _ CallSettings) error {
 				calls++
-				if count, ok := AttemptCountFromContext(ctx); ok {
-					attempts = append(attempts, count)
+				if count, ok := retryCountFromContext(ctx); ok {
+					retryCounts = append(retryCounts, count)
 				}
 				if calls < target {
 					return errors.New("retry")
@@ -300,8 +300,8 @@ func TestInvokeAttemptCount(t *testing.T) {
 			if enabled {
 				want = []int{0, 1, 2}
 			}
-			if diff := cmp.Diff(want, attempts); diff != "" {
-				t.Errorf("attempt count mismatch (-want +got):\n%s", diff)
+			if diff := cmp.Diff(want, retryCounts); diff != "" {
+				t.Errorf("retry count mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
