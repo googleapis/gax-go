@@ -32,6 +32,8 @@ package gax
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -40,6 +42,7 @@ import (
 	"github.com/googleapis/gax-go/v2/apierror"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -260,6 +263,50 @@ func TestInvokeWithTimeout(t *testing.T) {
 
 			if err != tst.want {
 				t.Errorf("found error %v, want %v", err, tst.want)
+			}
+		})
+	}
+}
+
+func TestInvokeRetryCount(t *testing.T) {
+	for _, tracingEnabled := range []bool{true, false} {
+		t.Run(fmt.Sprintf("tracingEnabled=%v", tracingEnabled), func(t *testing.T) {
+			TestOnlyResetIsFeatureEnabled()
+			defer TestOnlyResetIsFeatureEnabled()
+
+			if tracingEnabled {
+				t.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_TRACING", "true")
+			} else {
+				t.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_TRACING", "false")
+			}
+
+			const target = 3
+			var retryCounts []int
+			calls := 0
+			apiCall := func(ctx context.Context, _ CallSettings) error {
+				calls++
+				md, _ := metadata.FromOutgoingContext(ctx)
+				if vals := md["gcp.grpc.resend_count"]; len(vals) > 0 {
+					if count, err := strconv.Atoi(vals[0]); err == nil {
+						retryCounts = append(retryCounts, count)
+					}
+				}
+				if calls < target {
+					return errors.New("retry")
+				}
+				return nil
+			}
+			var settings CallSettings
+			WithRetry(func() Retryer { return boolRetryer(true) }).Resolve(&settings)
+			var sp recordSleeper
+			invoke(context.Background(), apiCall, settings, sp.sleep)
+
+			var want []int
+			if tracingEnabled {
+				want = []int{0, 1, 2}
+			}
+			if diff := cmp.Diff(want, retryCounts); diff != "" {
+				t.Errorf("retry count mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
