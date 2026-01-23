@@ -269,12 +269,12 @@ func TestInvokeWithTimeout(t *testing.T) {
 }
 
 func TestInvokeRetryCount(t *testing.T) {
-	for _, enabled := range []bool{true, false} {
-		t.Run(fmt.Sprintf("enabled=%v", enabled), func(t *testing.T) {
+	for _, tracingEnabled := range []bool{true, false} {
+		t.Run(fmt.Sprintf("tracingEnabled=%v", tracingEnabled), func(t *testing.T) {
 			TestOnlyResetIsFeatureEnabled()
 			defer TestOnlyResetIsFeatureEnabled()
 
-			if enabled {
+			if tracingEnabled {
 				t.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_TRACING", "true")
 			} else {
 				t.Setenv("GOOGLE_SDK_GO_EXPERIMENTAL_TRACING", "false")
@@ -302,7 +302,7 @@ func TestInvokeRetryCount(t *testing.T) {
 			invoke(context.Background(), apiCall, settings, sp.sleep)
 
 			var want []int
-			if enabled {
+			if tracingEnabled {
 				want = []int{0, 1, 2}
 			}
 			if diff := cmp.Diff(want, retryCounts); diff != "" {

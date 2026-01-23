@@ -42,11 +42,12 @@ import (
 // APICall is a user defined call stub.
 type APICall func(context.Context, CallSettings) error
 
-// withRetryCount returns a new context with the retry count attached.
-// retryCount is the number of retries that have been attempted.
-// The initial request is retryCount = 0.
+// withRetryCount returns a new context with the retry count appended to
+// gRPC metadata. The retry count is the number of retries that have been
+// attempted. Immediately after the initial request, retry count is 0.
+// Immediately after a second request (the first retry), retry count is 1.
 func withRetryCount(ctx context.Context, retryCount int) context.Context {
-	// For gRPC, we also append to metadata so it's visible to StatsHandlers
+	// Add to gRPC metadata so it's visible to StatsHandlers
 	return metadata.AppendToOutgoingContext(ctx, "gcp.grpc.resend_count", strconv.Itoa(retryCount))
 }
 
@@ -89,6 +90,7 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 	}
 
 	retryCount := 0
+	// Feature gate: GOOGLE_SDK_GO_EXPERIMENTAL_TRACING=true
 	tracingEnabled := IsFeatureEnabled("TRACING")
 	for {
 		ctxToUse := ctx
