@@ -34,6 +34,8 @@ import (
 	"math/rand"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -265,4 +267,10 @@ type CallSettings struct {
 	// Timeout defines the amount of time that Invoke has to complete.
 	// Unexported so it cannot be changed by the code in an APICall.
 	timeout time.Duration
+
+	// MetricInstrument is the OpenTelemetry Float64Histogram to record the M1 duration metric.
+	MetricInstrument metric.Float64Histogram
+
+	// TelemetryAttributes are the static attributes to be recorded with the M1 duration metric.
+	TelemetryAttributes []attribute.KeyValue
 }
