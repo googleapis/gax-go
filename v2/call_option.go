@@ -265,4 +265,7 @@ type CallSettings struct {
 	// Timeout defines the amount of time that Invoke has to complete.
 	// Unexported so it cannot be changed by the code in an APICall.
 	timeout time.Duration
+
+	// ClientMetrics contains the OpenTelemetry metrics state for the client.
+	ClientMetrics *ClientMetrics
 }
