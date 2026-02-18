@@ -40,77 +40,60 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
-func TestWithMetrics_Resolve(t *testing.T) {
-	provider := metric.NewMeterProvider()
-	otel.SetMeterProvider(provider)
-
-	libraryName := "test-library"
-	libraryVersion := "1.2.3"
-	scopeAttrs := map[string]string{
-		"s_key1": "s_val1",
-		"s_key2": "s_val2",
-	}
-	metricAttrs := map[string]string{
-		"m_key1": "m_val1",
-		"m_key2": "m_val2",
-	}
-
-	opt := WithMetrics(libraryName, libraryVersion, scopeAttrs, metricAttrs)
+func TestWithClientMetrics_Resolve(t *testing.T) {
+	cm := &ClientMetrics{}
+	opt := WithClientMetrics(cm)
 
 	var settings CallSettings
 	opt.Resolve(&settings)
 
-	if settings.MetricInstrument == nil {
-		t.Error("expected MetricInstrument to be initialized, got nil")
-	}
-
-	if len(settings.TelemetryAttributes) != len(metricAttrs) {
-		t.Errorf("expected %d TelemetryAttributes, got %d", len(metricAttrs), len(settings.TelemetryAttributes))
-	}
-
-	attrMap := make(map[string]string)
-	for _, attr := range settings.TelemetryAttributes {
-		attrMap[string(attr.Key)] = attr.Value.AsString()
-	}
-
-	for k, v := range metricAttrs {
-		if attrMap[k] != v {
-			t.Errorf("expected attribute %s=%s, got %s", k, v, attrMap[k])
-		}
+	if settings.ClientMetrics != cm {
+		t.Errorf("expected ClientMetrics to be %p, got %p", cm, settings.ClientMetrics)
 	}
 }
 
-func TestWithMetrics_Functionality(t *testing.T) {
+func TestNewClientMetrics_Functionality(t *testing.T) {
 	reader := metric.NewManualReader()
 	provider := metric.NewMeterProvider(metric.WithReader(reader))
 	otel.SetMeterProvider(provider)
 
 	libraryName := "test-library"
 	libraryVersion := "1.2.3"
-	scopeAttrs := map[string]string{
-		"s_key1": "s_val1",
-		"s_key2": "s_val2",
-	}
-	metricAttrs := map[string]string{
+	sharedAttrs := map[string]string{
 		"m_key1": "m_val1",
 		"m_key2": "m_val2",
 	}
 
-	opt := WithMetrics(libraryName, libraryVersion, scopeAttrs, metricAttrs)
+	cm, err := NewClientMetrics(provider, libraryName, libraryVersion, sharedAttrs)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	var settings CallSettings
-	opt.Resolve(&settings)
+	if cm.instrument == nil {
+		t.Fatal("expected instrument to be initialized, got nil")
+	}
 
-	if settings.MetricInstrument == nil {
-		t.Fatal("expected MetricInstrument to be initialized, got nil")
+	if len(cm.attributes) != len(sharedAttrs) {
+		t.Errorf("expected %d attributes, got %d", len(sharedAttrs), len(cm.attributes))
+	}
+
+	attrMap := make(map[string]string)
+	for _, attr := range cm.attributes {
+		attrMap[string(attr.Key)] = attr.Value.AsString()
+	}
+
+	for k, v := range sharedAttrs {
+		if attrMap[k] != v {
+			t.Errorf("expected attribute %s=%s, got %s", k, v, attrMap[k])
+		}
 	}
 
 	// Record a value to ensure the metric is functional
 	ctx := context.Background()
-	settings.MetricInstrument.Record(ctx, 42.0, metricapi.WithAttributes(settings.TelemetryAttributes...))
+	cm.instrument.Record(ctx, 42.0, metricapi.WithAttributes(cm.attributes...))
 
 	rm := &metricdata.ResourceMetrics{}
-	err := reader.Collect(ctx, rm)
+	err = reader.Collect(ctx, rm)
 	if err != nil {
 		t.Fatalf("failed to collect metrics: %v", err)
 	}
@@ -125,17 +108,6 @@ func TestWithMetrics_Functionality(t *testing.T) {
 	}
 	if sm.Scope.Version != libraryVersion {
 		t.Errorf("expected version %s, got %s", libraryVersion, sm.Scope.Version)
-	}
-
-	// Verify the instrumentation attributes
-	smAttrs := make(map[string]string)
-	for _, kv := range sm.Scope.Attributes.ToSlice() {
-		smAttrs[string(kv.Key)] = kv.Value.AsString()
-	}
-	for k, v := range scopeAttrs {
-		if smAttrs[k] != v {
-			t.Errorf("expected scope attribute %s=%s, got %s", k, v, smAttrs[k])
-		}
 	}
 
 	if len(sm.Metrics) != 1 {
@@ -164,12 +136,12 @@ func TestWithMetrics_Functionality(t *testing.T) {
 		t.Errorf("expected sum 42.0, got %f", dp.Sum)
 	}
 
-	// TelemetryAttributes are recorded via metricapi.WithAttributes
+	// Attributes are recorded via metricapi.WithAttributes
 	dpAttrs := make(map[string]string)
 	for _, kv := range dp.Attributes.ToSlice() {
 		dpAttrs[string(kv.Key)] = kv.Value.AsString()
 	}
-	for k, v := range metricAttrs {
+	for k, v := range sharedAttrs {
 		if dpAttrs[k] != v {
 			t.Errorf("expected datapoint attribute %s=%s, got %s", k, v, dpAttrs[k])
 		}
@@ -192,21 +164,20 @@ func (m *mockMeter) Float64Histogram(name string, options ...metricapi.Float64Hi
 	return nil, errors.New("mock error")
 }
 
-func TestWithMetrics_HistogramCreationFailure(t *testing.T) {
+func TestNewClientMetrics_HistogramCreationFailure(t *testing.T) {
 	provider := &mockMeterProvider{}
 	otel.SetMeterProvider(provider)
 
 	libraryName := "test-library"
 	libraryVersion := "1.2.3"
 
-	// Calling Resolve will trigger the mockMeter to return an error when creating the histogram
-	opt := WithMetrics(libraryName, libraryVersion, nil, nil)
-	var settings CallSettings
-	
-	// Resolve should not panic and should leave MetricInstrument as nil
-	opt.Resolve(&settings)
+	// Calling NewClientMetrics will trigger the mockMeter to return an error when creating the histogram
+	cm, err := NewClientMetrics(provider, libraryName, libraryVersion, nil)
 
-	if settings.MetricInstrument != nil {
-		t.Errorf("expected MetricInstrument to be nil on creation failure, got %v", settings.MetricInstrument)
+	if err == nil {
+		t.Errorf("expected error on creation failure, got nil")
+	}
+	if cm != nil {
+		t.Errorf("expected ClientMetrics to be nil on creation failure, got %v", cm)
 	}
 }

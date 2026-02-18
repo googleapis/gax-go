@@ -35,51 +35,48 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-type metricsOpt struct {
-	libraryName    string
-	libraryVersion string
-	scopeAttrs     map[string]string
-	metricAttrs    map[string]string
+// ClientMetrics holds the initialized OpenTelemetry metrics state for the client.
+// It is opaque to avoid leaking OTel types to generated clients.
+type ClientMetrics struct {
+	instrument metric.Float64Histogram
+	attributes []attribute.KeyValue
 }
 
-// WithMetrics is a CallOption that initializes OpenTelemetry metrics for the client.
-// It sets up the MeterProvider, retrieves the meter for the given library,
-// creates the metric instrument (gcp.client.request.duration), and stores the
-// attributes to be recorded with each metric emission.
-// scopeAttrs are instrumentation scope attributes.
-// metricAttrs are common per-metric attributes (supplied to record).
-func WithMetrics(libraryName, libraryVersion string, scopeAttrs map[string]string, metricAttrs map[string]string) CallOption {
-	return &metricsOpt{
-		libraryName:    libraryName,
-		libraryVersion: libraryVersion,
-		scopeAttrs:     scopeAttrs,
-		metricAttrs:    metricAttrs,
-	}
-}
-
-func (m *metricsOpt) Resolve(s *CallSettings) {
-	provider := otel.GetMeterProvider()
-
-	var otelScopeAttrs []attribute.KeyValue
-	for k, v := range m.scopeAttrs {
-		otelScopeAttrs = append(otelScopeAttrs, attribute.String(k, v))
+// NewClientMetrics initializes the OpenTelemetry Meter and Histogram for the client.
+// This should be called once per client instance.
+func NewClientMetrics(provider metric.MeterProvider, libraryName, libraryVersion string, sharedAttrs map[string]string) (*ClientMetrics, error) {
+	if provider == nil {
+		provider = otel.GetMeterProvider()
 	}
 
-	meter := provider.Meter(m.libraryName, metric.WithInstrumentationVersion(m.libraryVersion), metric.WithInstrumentationAttributes(otelScopeAttrs...))
+	meter := provider.Meter(libraryName, metric.WithInstrumentationVersion(libraryVersion))
 
-	// Create the duration histogram. Note that we don't return the error directly
-	// as CallOptions cannot return errors, and we do not log them. If creation
-	// fails, we simply skip metrics generation.
 	hist, err := meter.Float64Histogram("gcp.client.request.duration", metric.WithUnit("s"))
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	var otelMetricAttrs []attribute.KeyValue
-	for k, v := range m.metricAttrs {
+	for k, v := range sharedAttrs {
 		otelMetricAttrs = append(otelMetricAttrs, attribute.String(k, v))
 	}
 
-	s.MetricInstrument = hist
-	s.TelemetryAttributes = append(s.TelemetryAttributes, otelMetricAttrs...)
+	return &ClientMetrics{
+		instrument: hist,
+		attributes: otelMetricAttrs,
+	}, nil
+}
+
+type metricsOpt struct {
+	cm *ClientMetrics
+}
+
+// WithClientMetrics is a CallOption that configures OpenTelemetry metrics for the call.
+// It accepts a pre-initialized ClientMetrics struct.
+func WithClientMetrics(cm *ClientMetrics) CallOption {
+	return &metricsOpt{cm: cm}
+}
+
+func (m *metricsOpt) Resolve(s *CallSettings) {
+	s.ClientMetrics = m.cm
 }
