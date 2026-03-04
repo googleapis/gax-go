@@ -40,9 +40,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/googleapis/gax-go/v2/apierror"
+	"github.com/googleapis/gax-go/v2/callctx"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -285,9 +285,8 @@ func TestInvokeRetryCount(t *testing.T) {
 			calls := 0
 			apiCall := func(ctx context.Context, _ CallSettings) error {
 				calls++
-				md, _ := metadata.FromOutgoingContext(ctx)
-				if vals := md["gcp.grpc.resend_count"]; len(vals) > 0 {
-					if count, err := strconv.Atoi(vals[0]); err == nil {
+				if val, ok := callctx.TelemetryFromContext(ctx, "gcp.grpc.resend_count"); ok {
+					if count, err := strconv.Atoi(val); err == nil {
 						retryCounts = append(retryCounts, count)
 					}
 				}
