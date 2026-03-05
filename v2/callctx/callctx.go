@@ -102,15 +102,25 @@ func cloneHeaders(h map[string][]string) map[string][]string {
 // telemetryKey is a private type used to store/retrieve telemetry context values.
 type telemetryKey string
 
-// WithTelemetryContext injects request-scoped telemetry data into the context.
-// In accordance with standard Go context guidelines, this should only be used
-// for observability data (like resource names or client version) that transits
-// processes and APIs, and not for passing optional parameters to functions.
-func WithTelemetryContext(ctx context.Context, key, value string) context.Context {
-	return context.WithValue(ctx, telemetryKey(key), value)
+// WithTelemetryContext injects telemetry attributes values (like resource name
+// or client version) into the context. In accordance with standard Go context
+// guidelines, this should only be used for data that transits processes and APIs,
+// and not for passing optional parameters to functions. keyvals should have a
+// corresponding value for every key provided. If there is an odd number of keyvals
+// this method will panic.
+func WithTelemetryContext(ctx context.Context, keyvals ...string) context.Context {
+	if len(keyvals)%2 != 0 {
+		panic(fmt.Sprintf("callctx: an even number of key value pairs must be provided, got %d", len(keyvals)))
+	}
+
+	for i := 0; i < len(keyvals); i = i + 2 {
+		ctx = context.WithValue(ctx, telemetryKey(keyvals[i]), keyvals[i+1])
+	}
+	return ctx
 }
 
-// TelemetryFromContext extracts request-scoped telemetry data from the context.
+// TelemetryFromContext extracts a telemetry attributes value from the context.
+// The returned bool indicates a successful typecast of the value to a string.
 func TelemetryFromContext(ctx context.Context, key string) (string, bool) {
 	val, ok := ctx.Value(telemetryKey(key)).(string)
 	return val, ok
