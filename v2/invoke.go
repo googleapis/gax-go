@@ -48,7 +48,7 @@ type APICall func(context.Context, CallSettings) error
 // On a second request (the first retry), retry count is 1.
 func withRetryCount(ctx context.Context, retryCount int) context.Context {
 	// Add to telemetry context so it's visible to observability wrappers
-	return callctx.WithTelemetryContext(ctx, "gcp.grpc.resend_count", strconv.Itoa(retryCount))
+	return callctx.WithTelemetryContext(ctx, "resend_count", strconv.Itoa(retryCount))
 }
 
 // Invoke calls the given APICall, performing retries as specified by opts, if

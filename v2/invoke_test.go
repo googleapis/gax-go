@@ -285,7 +285,7 @@ func TestInvokeRetryCount(t *testing.T) {
 			calls := 0
 			apiCall := func(ctx context.Context, _ CallSettings) error {
 				calls++
-				if val, ok := callctx.TelemetryFromContext(ctx, "gcp.grpc.resend_count"); ok {
+				if val, ok := callctx.TelemetryFromContext(ctx, "resend_count"); ok {
 					if count, err := strconv.Atoi(val); err == nil {
 						retryCounts = append(retryCounts, count)
 					}
