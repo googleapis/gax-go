@@ -140,3 +140,14 @@ func TestWithTimeout(t *testing.T) {
 		t.Errorf("got %v, want %v", settings.timeout, to)
 	}
 }
+
+func TestWithClientMetrics(t *testing.T) {
+	settings := CallSettings{}
+	cm := &ClientMetrics{}
+
+	WithClientMetrics(cm).Resolve(&settings)
+
+	if settings.clientMetrics != cm {
+		t.Errorf("got %p, want %p", settings.clientMetrics, cm)
+	}
+}
