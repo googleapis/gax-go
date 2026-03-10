@@ -137,7 +137,7 @@ func TestLoggerFromContext(t *testing.T) {
 	// Should extract the exact logger that was injected
 	var logOutput bytes.Buffer
 	injectedLogger := slog.New(slog.NewTextHandler(&logOutput, nil))
-	ctx = WithLogger(ctx, injectedLogger)
+	ctx = WithLoggerContext(ctx, injectedLogger)
 
 	extractedLogger, ok := LoggerFromContext(ctx)
 	if !ok || extractedLogger != injectedLogger {

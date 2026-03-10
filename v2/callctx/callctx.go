@@ -132,9 +132,9 @@ type loggerContextKey string
 
 const loggerCKey = loggerContextKey("logger")
 
-// WithLogger injects a slog.Logger into the context. This logger will be
-// extracted by the client library or transport wrappers to emit logs.
-func WithLogger(ctx context.Context, logger *slog.Logger) context.Context {
+// WithLoggerContext injects a slog.Logger into the context. This logger will
+// be extracted by the client library or transport wrappers to emit logs.
+func WithLoggerContext(ctx context.Context, logger *slog.Logger) context.Context {
 	return context.WithValue(ctx, loggerCKey, logger)
 }
 
