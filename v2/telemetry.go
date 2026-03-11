@@ -30,8 +30,6 @@
 package gax
 
 import (
-	"sort"
-
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -45,9 +43,7 @@ const (
 	// These are used by generated clients to pass attributes to the ClientMetrics option.
 	// Because they are used in generated code, these values must not be changed.
 
-	// ClientRepo is the repo name. E.g. "googleapis/google-cloud-go".
-	ClientRepo = "client_repo"
-	// ClientService is the client service name. E.g. "storage".
+	// ClientService is the Google Cloud API service name. E.g. "storage".
 	ClientService = "client_service"
 	// ClientVersion is the version of the client. E.g. "1.43.0".
 	ClientVersion = "client_version"
@@ -59,7 +55,6 @@ const (
 	URLDomain = "url_domain"
 
 	// Constants for telemetry attribute keys.
-	keyGCPClientRepo    = "gcp.client.repo"
 	keyGCPClientService = "gcp.client.service"
 	keyRPCSystemName    = "rpc.system.name"
 	keyURLDomain        = "url.domain"
@@ -148,9 +143,6 @@ func NewClientMetrics(opts ...ClientMetricsOption) *ClientMetrics {
 	}
 
 	var meterAttrs []attribute.KeyValue
-	if val, ok := config.attributes[ClientRepo]; ok {
-		meterAttrs = append(meterAttrs, attribute.KeyValue{Key: attribute.Key(keyGCPClientRepo), Value: attribute.StringValue(val)})
-	}
 	if val, ok := config.attributes[ClientService]; ok {
 		meterAttrs = append(meterAttrs, attribute.KeyValue{Key: attribute.Key(keyGCPClientService), Value: attribute.StringValue(val)})
 	}
@@ -177,7 +169,6 @@ func NewClientMetrics(opts ...ClientMetricsOption) *ClientMetrics {
 		metric.WithExplicitBucketBoundaries(boundaries...),
 	)
 
-	// Pre-allocate and sort static attributes for consistent recording.
 	var attr []attribute.KeyValue
 	if val, ok := config.attributes[URLDomain]; ok {
 		attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyURLDomain), Value: attribute.StringValue(val)})
@@ -185,9 +176,6 @@ func NewClientMetrics(opts ...ClientMetricsOption) *ClientMetrics {
 	if val, ok := config.attributes[RPCSystem]; ok {
 		attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyRPCSystemName), Value: attribute.StringValue(val)})
 	}
-	sort.Slice(attr, func(i, j int) bool {
-		return attr[i].Key < attr[j].Key
-	})
 
 	return &ClientMetrics{
 		duration: duration,

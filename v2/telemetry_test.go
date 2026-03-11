@@ -83,7 +83,6 @@ func TestNewClientMetrics(t *testing.T) {
 					ClientArtifact: "test-lib-3",
 					ClientVersion:  "v1.0.2",
 					ClientService:  "myservice",
-					ClientRepo:     "myrepo",
 					RPCSystem:      "grpc",
 					URLDomain:      "test.domain",
 					"ignored.key":  "ignored",
@@ -91,7 +90,6 @@ func TestNewClientMetrics(t *testing.T) {
 			},
 			wantScopeAttr: map[string]string{
 				"gcp.client.service": "myservice",
-				"gcp.client.repo":    "myrepo",
 			},
 			wantDataAttr: map[string]string{
 				"rpc.system.name": "grpc",
@@ -205,7 +203,6 @@ func TestTelemetryConfigKeys(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"ClientRepo", ClientRepo, "client_repo"},
 		{"ClientService", ClientService, "client_service"},
 		{"ClientVersion", ClientVersion, "client_version"},
 		{"ClientArtifact", ClientArtifact, "client_artifact"},
