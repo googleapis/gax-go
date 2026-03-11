@@ -234,3 +234,21 @@ func TestNoSDKImport(t *testing.T) {
 		t.Errorf("Production code imports the OpenTelemetry SDK (go.opentelemetry.io/otel/sdk). This is forbidden.")
 	}
 }
+
+func TestTransportTelemetry(t *testing.T) {
+	ctx := context.Background()
+	data := &TransportTelemetryData{
+		ServerAddress:      "localhost",
+		ServerPort:         8080,
+		ResponseStatusCode: 200,
+	}
+
+	ctx = InjectTransportTelemetry(ctx, data)
+	got, ok := ExtractTransportTelemetry(ctx)
+	if !ok {
+		t.Errorf("ExtractTransportTelemetry() = (_, false), want true")
+	}
+	if got != data {
+		t.Errorf("ExtractTransportTelemetry() = %v, want %v", got, data)
+	}
+}

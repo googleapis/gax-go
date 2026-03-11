@@ -30,10 +30,40 @@
 package gax
 
 import (
+	"context"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
+
+// TransportTelemetryData contains mutable telemetry information that the transport
+// layer (e.g. gRPC or HTTP) populates during an RPC. This allows gax.Invoke to
+// correctly emit metric data without directly importing those transport layers.
+// This is an EXPERIMENTAL struct and should not be used by external consumers.
+type TransportTelemetryData struct {
+	// ServerAddress is the host:port of the server answering the request.
+	ServerAddress string
+	// ServerPort is the port of the server answering the request.
+	ServerPort int
+	// ResponseStatusCode is the numeric status code of the response.
+	ResponseStatusCode int
+}
+
+// transportTelemetryKey is the private context key used to inject TransportTelemetryData
+type transportTelemetryKey struct{}
+
+// InjectTransportTelemetry injects a mutable TransportTelemetryData pointer into the context.
+// Experimental: This function is subject to breaking changes.
+func InjectTransportTelemetry(ctx context.Context, data *TransportTelemetryData) context.Context {
+	return context.WithValue(ctx, transportTelemetryKey{}, data)
+}
+
+// ExtractTransportTelemetry retrieves a mutable TransportTelemetryData pointer from the context.
+func ExtractTransportTelemetry(ctx context.Context) (*TransportTelemetryData, bool) {
+	data, ok := ctx.Value(transportTelemetryKey{}).(*TransportTelemetryData)
+	return data, ok
+}
 
 const (
 	metricName        = "gcp.client.request.duration"
