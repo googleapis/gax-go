@@ -42,13 +42,28 @@ import (
 // correctly emit metric data without directly importing those transport layers.
 // This is an EXPERIMENTAL struct and should not be used by external consumers.
 type TransportTelemetryData struct {
-	// ServerAddress is the host:port of the server answering the request.
-	ServerAddress string
-	// ServerPort is the port of the server answering the request.
-	ServerPort int
-	// ResponseStatusCode is the numeric status code of the response.
-	ResponseStatusCode int
+	serverAddress      string
+	serverPort         int
+	responseStatusCode int
 }
+
+// SetServerAddress sets the server address.
+func (d *TransportTelemetryData) SetServerAddress(addr string) { d.serverAddress = addr }
+
+// ServerAddress returns the server address.
+func (d *TransportTelemetryData) ServerAddress() string { return d.serverAddress }
+
+// SetServerPort sets the server port.
+func (d *TransportTelemetryData) SetServerPort(port int) { d.serverPort = port }
+
+// ServerPort returns the server port.
+func (d *TransportTelemetryData) ServerPort() int { return d.serverPort }
+
+// SetResponseStatusCode sets the response status code.
+func (d *TransportTelemetryData) SetResponseStatusCode(code int) { d.responseStatusCode = code }
+
+// ResponseStatusCode returns the response status code.
+func (d *TransportTelemetryData) ResponseStatusCode() int { return d.responseStatusCode }
 
 // transportTelemetryKey is the private context key used to inject TransportTelemetryData
 type transportTelemetryKey struct{}
