@@ -30,10 +30,55 @@
 package gax
 
 import (
+	"context"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
+
+// TransportTelemetryData contains mutable telemetry information that the transport
+// layer (e.g. gRPC or HTTP) populates during an RPC. This allows gax.Invoke to
+// correctly emit metric data without directly importing those transport layers.
+// This is an EXPERIMENTAL struct and should not be used by external consumers.
+type TransportTelemetryData struct {
+	serverAddress      string
+	serverPort         int
+	responseStatusCode int
+}
+
+// SetServerAddress sets the server address.
+func (d *TransportTelemetryData) SetServerAddress(addr string) { d.serverAddress = addr }
+
+// ServerAddress returns the server address.
+func (d *TransportTelemetryData) ServerAddress() string { return d.serverAddress }
+
+// SetServerPort sets the server port.
+func (d *TransportTelemetryData) SetServerPort(port int) { d.serverPort = port }
+
+// ServerPort returns the server port.
+func (d *TransportTelemetryData) ServerPort() int { return d.serverPort }
+
+// SetResponseStatusCode sets the response status code.
+func (d *TransportTelemetryData) SetResponseStatusCode(code int) { d.responseStatusCode = code }
+
+// ResponseStatusCode returns the response status code.
+func (d *TransportTelemetryData) ResponseStatusCode() int { return d.responseStatusCode }
+
+// transportTelemetryKey is the private context key used to inject TransportTelemetryData
+type transportTelemetryKey struct{}
+
+// InjectTransportTelemetry injects a mutable TransportTelemetryData pointer into the context.
+// Experimental: This function is subject to breaking changes.
+func InjectTransportTelemetry(ctx context.Context, data *TransportTelemetryData) context.Context {
+	return context.WithValue(ctx, transportTelemetryKey{}, data)
+}
+
+// ExtractTransportTelemetry retrieves a mutable TransportTelemetryData pointer from the context.
+func ExtractTransportTelemetry(ctx context.Context) *TransportTelemetryData {
+	data, _ := ctx.Value(transportTelemetryKey{}).(*TransportTelemetryData)
+	return data
+}
 
 const (
 	metricName        = "gcp.client.request.duration"
