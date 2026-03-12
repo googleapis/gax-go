@@ -243,9 +243,9 @@ func TestTransportTelemetry(t *testing.T) {
 	data.SetResponseStatusCode(200)
 
 	ctx = InjectTransportTelemetry(ctx, data)
-	got, ok := ExtractTransportTelemetry(ctx)
-	if !ok {
-		t.Errorf("ExtractTransportTelemetry() = (_, false), want true")
+	got := ExtractTransportTelemetry(ctx)
+	if got == nil {
+		t.Errorf("ExtractTransportTelemetry() = nil, want %v", data)
 	}
 	if got != data {
 		t.Errorf("ExtractTransportTelemetry() = %v, want %v", got, data)
