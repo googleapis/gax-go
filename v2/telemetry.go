@@ -48,21 +48,27 @@ type TransportTelemetryData struct {
 }
 
 // SetServerAddress sets the server address.
+// Experimental: This function is subject to breaking changes.
 func (d *TransportTelemetryData) SetServerAddress(addr string) { d.serverAddress = addr }
 
 // ServerAddress returns the server address.
+// Experimental: This function is subject to breaking changes.
 func (d *TransportTelemetryData) ServerAddress() string { return d.serverAddress }
 
 // SetServerPort sets the server port.
+// Experimental: This function is subject to breaking changes.
 func (d *TransportTelemetryData) SetServerPort(port int) { d.serverPort = port }
 
 // ServerPort returns the server port.
+// Experimental: This function is subject to breaking changes.
 func (d *TransportTelemetryData) ServerPort() int { return d.serverPort }
 
 // SetResponseStatusCode sets the response status code.
+// Experimental: This function is subject to breaking changes.
 func (d *TransportTelemetryData) SetResponseStatusCode(code int) { d.responseStatusCode = code }
 
 // ResponseStatusCode returns the response status code.
+// Experimental: This function is subject to breaking changes.
 func (d *TransportTelemetryData) ResponseStatusCode() int { return d.responseStatusCode }
 
 // transportTelemetryKey is the private context key used to inject TransportTelemetryData
