@@ -75,6 +75,8 @@ func InjectTransportTelemetry(ctx context.Context, data *TransportTelemetryData)
 }
 
 // ExtractTransportTelemetry retrieves a mutable TransportTelemetryData pointer from the context.
+// It returns nil if the data is not present.
+// Experimental: This function is subject to breaking changes.
 func ExtractTransportTelemetry(ctx context.Context) *TransportTelemetryData {
 	data, _ := ctx.Value(transportTelemetryKey{}).(*TransportTelemetryData)
 	return data
