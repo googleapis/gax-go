@@ -30,7 +30,9 @@
 package callctx
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -122,4 +124,24 @@ func TestSetHeaders_race(t *testing.T) {
 		}(cctx)
 	}
 	wg.Wait()
+}
+
+func TestLoggerFromContext(t *testing.T) {
+	ctx := context.Background()
+
+	// Should not find a logger in an empty context
+	l, ok := LoggerFromContext(ctx)
+	if ok || l != nil {
+		t.Errorf("LoggerFromContext(ctx) = %v, %v; want nil, false", l, ok)
+	}
+
+	// Should extract the exact logger that was injected
+	var logOutput bytes.Buffer
+	injectedLogger := slog.New(slog.NewTextHandler(&logOutput, nil))
+	ctx = WithLoggerContext(ctx, injectedLogger)
+
+	extractedLogger, ok := LoggerFromContext(ctx)
+	if !ok || extractedLogger != injectedLogger {
+		t.Errorf("LoggerFromContext(ctx) = %v, %v; want %v, true", extractedLogger, ok, injectedLogger)
+	}
 }
