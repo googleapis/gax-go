@@ -78,6 +78,7 @@ func TestSetHeaders_panics(t *testing.T) {
 		}
 	}()
 	ctx := context.Background()
+	//lint:ignore SA5012 intentionally passing odd number of arguments to trigger panic
 	SetHeaders(ctx, "1", "2", "3")
 }
 

@@ -33,7 +33,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
+
 	"testing"
 	"time"
 
@@ -134,7 +134,7 @@ func TestRecv(t *testing.T) {
 }
 
 func TestRecvAfterClose(t *testing.T) {
-	empty := ioutil.NopCloser(bytes.NewReader([]byte("[]")))
+	empty := io.NopCloser(bytes.NewReader([]byte("[]")))
 	s := NewProtoJSONStreamReader(empty, nil)
 	if _, err := s.Recv(); !errors.Is(err, io.EOF) {
 		t.Errorf("Expected %v but got %v", io.EOF, err)
@@ -149,7 +149,7 @@ func TestRecvAfterClose(t *testing.T) {
 }
 
 func TestRecvError(t *testing.T) {
-	noOpening := ioutil.NopCloser(bytes.NewReader([]byte{'{'}))
+	noOpening := io.NopCloser(bytes.NewReader([]byte{'{'}))
 	s := NewProtoJSONStreamReader(noOpening, nil)
 	if _, err := s.Recv(); !errors.Is(err, errBadOpening) {
 		t.Errorf("Expected %v but got %v", errBadOpening, err)
@@ -158,7 +158,7 @@ func TestRecvError(t *testing.T) {
 
 func prepareStream(messages []proto.Message) (io.ReadCloser, error) {
 	if len(messages) == 0 {
-		return ioutil.NopCloser(bytes.NewReader([]byte("[]"))), nil
+		return io.NopCloser(bytes.NewReader([]byte("[]"))), nil
 	}
 
 	data := []byte("[")
@@ -173,5 +173,5 @@ func prepareStream(messages []proto.Message) (io.ReadCloser, error) {
 	}
 	// Set the trailing ',' to a closing ']'.
 	data[len(data)-1] = ']'
-	return ioutil.NopCloser(bytes.NewReader(data)), nil
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
