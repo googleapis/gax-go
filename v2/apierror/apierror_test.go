@@ -33,7 +33,8 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"io/ioutil"
+	"os"
+
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -530,11 +531,11 @@ func TestParseError(t *testing.T) {
 func golden(name, got string) (string, error) {
 	g := filepath.Join("testdata", name+".golden")
 	if *update {
-		if err := ioutil.WriteFile(g, []byte(got), 0644); err != nil {
+		if err := os.WriteFile(g, []byte(got), 0644); err != nil {
 			return "", err
 		}
 	}
-	want, err := ioutil.ReadFile(g)
+	want, err := os.ReadFile(g)
 	return string(want), err
 }
 
