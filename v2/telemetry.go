@@ -40,7 +40,9 @@ import (
 // TransportTelemetryData contains mutable telemetry information that the transport
 // layer (e.g. gRPC or HTTP) populates during an RPC. This allows gax.Invoke to
 // correctly emit metric data without directly importing those transport layers.
-// This is an EXPERIMENTAL struct and should not be used by external consumers.
+// TransportTelemetryData is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
+// It should not be used by external consumers.
 type TransportTelemetryData struct {
 	serverAddress      string
 	serverPort         int
@@ -48,41 +50,49 @@ type TransportTelemetryData struct {
 }
 
 // SetServerAddress sets the server address.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func (d *TransportTelemetryData) SetServerAddress(addr string) { d.serverAddress = addr }
 
 // ServerAddress returns the server address.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func (d *TransportTelemetryData) ServerAddress() string { return d.serverAddress }
 
 // SetServerPort sets the server port.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func (d *TransportTelemetryData) SetServerPort(port int) { d.serverPort = port }
 
 // ServerPort returns the server port.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func (d *TransportTelemetryData) ServerPort() int { return d.serverPort }
 
 // SetResponseStatusCode sets the response status code.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func (d *TransportTelemetryData) SetResponseStatusCode(code int) { d.responseStatusCode = code }
 
 // ResponseStatusCode returns the response status code.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func (d *TransportTelemetryData) ResponseStatusCode() int { return d.responseStatusCode }
 
 // transportTelemetryKey is the private context key used to inject TransportTelemetryData
 type transportTelemetryKey struct{}
 
 // InjectTransportTelemetry injects a mutable TransportTelemetryData pointer into the context.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func InjectTransportTelemetry(ctx context.Context, data *TransportTelemetryData) context.Context {
 	return context.WithValue(ctx, transportTelemetryKey{}, data)
 }
 
 // ExtractTransportTelemetry retrieves a mutable TransportTelemetryData pointer from the context.
 // It returns nil if the data is not present.
-// Experimental: This function is subject to breaking changes.
+// Experimental: This function is experimental and may be modified or removed in future versions,
+// regardless of any other documented package stability guarantees.
 func ExtractTransportTelemetry(ctx context.Context) *TransportTelemetryData {
 	data, _ := ctx.Value(transportTelemetryKey{}).(*TransportTelemetryData)
 	return data
