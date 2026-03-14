@@ -192,6 +192,20 @@ func WithExplicitBucketBoundaries(boundaries []float64) ClientMetricsOption {
 	return &boundariesOpt{boundaries: boundaries}
 }
 
+func (config *clientMetricsOptions) meterProvider() metric.MeterProvider {
+	if config.provider != nil {
+		return config.provider
+	}
+	return otel.GetMeterProvider()
+}
+
+func (config *clientMetricsOptions) bucketBoundaries() []float64 {
+	if len(config.explicitBucketBoundaries) > 0 {
+		return config.explicitBucketBoundaries
+	}
+	return defaultHistogramBoundaries
+}
+
 // NewClientMetrics initializes and returns a new ClientMetrics instance.
 // It is intended to be called once per generated client during initialization.
 func NewClientMetrics(opts ...ClientMetricsOption) *ClientMetrics {
@@ -200,10 +214,7 @@ func NewClientMetrics(opts ...ClientMetricsOption) *ClientMetrics {
 		opt.Resolve(&config)
 	}
 
-	provider := config.provider
-	if provider == nil {
-		provider = otel.GetMeterProvider()
-	}
+	provider := config.meterProvider()
 
 	var meterAttrs []attribute.KeyValue
 	if val, ok := config.attributes[ClientService]; ok {
@@ -220,10 +231,7 @@ func NewClientMetrics(opts ...ClientMetricsOption) *ClientMetrics {
 
 	meter := provider.Meter(config.attributes[ClientArtifact], meterOpts...)
 
-	boundaries := config.explicitBucketBoundaries
-	if len(boundaries) == 0 {
-		boundaries = defaultHistogramBoundaries
-	}
+	boundaries := config.bucketBoundaries()
 
 	duration, _ := meter.Float64Histogram(
 		metricName,
