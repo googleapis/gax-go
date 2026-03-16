@@ -30,7 +30,9 @@
 package gax
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"testing"
@@ -47,15 +49,15 @@ func TestNewClientMetrics(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		opts          []ClientMetricsOption
+		opts          []TelemetryOption
 		wantScopeAttr map[string]string
 		wantDataAttr  map[string]string
 		useCustom     bool
 	}{
 		{
 			name: "default boundaries and global provider",
-			opts: []ClientMetricsOption{
-				WithClientMetricsAttributes(map[string]string{
+			opts: []TelemetryOption{
+				WithTelemetryAttributes(map[string]string{
 					ClientArtifact: "test-lib",
 					ClientVersion:  "v1.0.0",
 				}),
@@ -65,8 +67,8 @@ func TestNewClientMetrics(t *testing.T) {
 		},
 		{
 			name: "custom provider and custom boundaries",
-			opts: []ClientMetricsOption{
-				WithClientMetricsAttributes(map[string]string{
+			opts: []TelemetryOption{
+				WithTelemetryAttributes(map[string]string{
 					ClientArtifact: "test-lib-2",
 					ClientVersion:  "v1.0.1",
 				}),
@@ -78,8 +80,8 @@ func TestNewClientMetrics(t *testing.T) {
 		},
 		{
 			name: "with static attributes",
-			opts: []ClientMetricsOption{
-				WithClientMetricsAttributes(map[string]string{
+			opts: []TelemetryOption{
+				WithTelemetryAttributes(map[string]string{
 					ClientArtifact: "test-lib-3",
 					ClientVersion:  "v1.0.2",
 					ClientService:  "myservice",
@@ -96,6 +98,30 @@ func TestNewClientMetrics(t *testing.T) {
 				"url.domain":      "test.domain",
 			},
 		},
+		{
+			name: "with logger",
+			opts: []TelemetryOption{
+				WithTelemetryAttributes(map[string]string{
+					ClientArtifact: "test-lib",
+					ClientVersion:  "v1.0.0",
+				}),
+				WithTelemetryLogger(slog.Default()),
+			},
+			wantScopeAttr: map[string]string{},
+			wantDataAttr:  map[string]string{},
+		},
+		{
+			name: "with nil logger",
+			opts: []TelemetryOption{
+				WithTelemetryAttributes(map[string]string{
+					ClientArtifact: "test-lib",
+					ClientVersion:  "v1.0.0",
+				}),
+				WithTelemetryLogger(nil),
+			},
+			wantScopeAttr: map[string]string{},
+			wantDataAttr:  map[string]string{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -104,7 +130,7 @@ func TestNewClientMetrics(t *testing.T) {
 			if tt.useCustom {
 				cmOpts = append(cmOpts, WithMeterProvider(customProvider))
 				cm := NewClientMetrics(cmOpts...)
-				if cm == nil || cm.duration == nil {
+				if cm == nil || cm.durationHistogram() == nil {
 					t.Fatalf("expected initialized metrics")
 				}
 				return // we can't observe noop provider, so just verify it doesn't panic
@@ -121,12 +147,12 @@ func TestNewClientMetrics(t *testing.T) {
 			if cm == nil {
 				t.Fatalf("NewClientMetrics returned nil")
 			}
-			if cm.duration == nil {
+			if cm.durationHistogram() == nil {
 				t.Fatalf("expected Float64Histogram to be initialized, got nil")
 			}
 
 			// Record a dummy value so we can collect the metrics and inspect Scope attributes
-			cm.duration.Record(context.Background(), 1.0, metric.WithAttributes(cm.attr...))
+			cm.durationHistogram().Record(context.Background(), 1.0, metric.WithAttributes(cm.attributes()...))
 
 			var rm metricdata.ResourceMetrics
 			if err := reader.Collect(context.Background(), &rm); err != nil {
@@ -181,8 +207,8 @@ func TestNewClientMetrics(t *testing.T) {
 }
 
 func TestNewClientMetrics_GlobalFallback(t *testing.T) {
-	opts := []ClientMetricsOption{
-		WithClientMetricsAttributes(map[string]string{
+	opts := []TelemetryOption{
+		WithTelemetryAttributes(map[string]string{
 			ClientArtifact: "test-global-fallback",
 		}),
 	}
@@ -190,9 +216,61 @@ func TestNewClientMetrics_GlobalFallback(t *testing.T) {
 	if cm == nil {
 		t.Fatalf("expected non-nil ClientMetrics")
 	}
-	if cm.duration == nil {
+	if cm.durationHistogram() == nil {
 		t.Errorf("expected non-nil duration histogram")
 	}
+}
+
+func TestNewClientMetrics_InitializationError(t *testing.T) {
+	// Setup SDK
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+	t.Run("with logger", func(t *testing.T) {
+		// Capture log output
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+		opts := []TelemetryOption{
+			WithMeterProvider(provider),
+			WithTelemetryAttributes(map[string]string{
+				ClientArtifact: "test-error",
+			}),
+			WithExplicitBucketBoundaries([]float64{10.0, 5.0}), // Invalid boundaries trigger error
+			WithTelemetryLogger(logger),
+		}
+
+		cm := NewClientMetrics(opts...)
+		if cm == nil {
+			t.Fatalf("expected non-nil ClientMetrics")
+		}
+
+		// Trigger lazy initialization, which should fail and log
+		cm.durationHistogram()
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "failed to initialize OTel duration histogram") {
+			t.Errorf("expected initialization error to be logged, got: %s", logOutput)
+		}
+	})
+
+	t.Run("without logger", func(t *testing.T) {
+		opts := []TelemetryOption{
+			WithMeterProvider(provider),
+			WithTelemetryAttributes(map[string]string{
+				ClientArtifact: "test-error",
+			}),
+			WithExplicitBucketBoundaries([]float64{10.0, 5.0}), // Invalid boundaries trigger error
+		}
+
+		cm := NewClientMetrics(opts...)
+		if cm == nil {
+			t.Fatalf("expected non-nil ClientMetrics")
+		}
+
+		// Trigger lazy initialization, which should fail but NOT panic
+		cm.durationHistogram()
+	})
 }
 
 func TestTelemetryConfigKeys(t *testing.T) {
