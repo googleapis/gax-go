@@ -31,6 +31,8 @@ package gax
 
 import (
 	"context"
+	"log/slog"
+	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -136,33 +138,38 @@ var defaultHistogramBoundaries = []float64{
 // for a specific generated Google Cloud client library.
 // There should be exactly one ClientMetrics instance instantiated per generated client.
 type ClientMetrics struct {
+	get func() clientMetricsData
+}
+
+type clientMetricsData struct {
 	duration metric.Float64Histogram
 	attr     []attribute.KeyValue
 }
 
-type clientMetricsOptions struct {
+type telemetryOptions struct {
 	provider                 metric.MeterProvider
 	attributes               map[string]string
 	explicitBucketBoundaries []float64
+	logger                   *slog.Logger
 }
 
-// ClientMetricsOption is an option to configure a ClientMetrics instance.
-// ClientMetricsOption works by modifying relevant fields of clientMetricsOptions.
-type ClientMetricsOption interface {
+// TelemetryOption is an option to configure a ClientMetrics instance.
+// TelemetryOption works by modifying relevant fields of telemetryOptions.
+type TelemetryOption interface {
 	// Resolve applies the option by modifying opts.
-	Resolve(opts *clientMetricsOptions)
+	Resolve(opts *telemetryOptions)
 }
 
 type providerOpt struct {
 	p metric.MeterProvider
 }
 
-func (p providerOpt) Resolve(opts *clientMetricsOptions) {
+func (p providerOpt) Resolve(opts *telemetryOptions) {
 	opts.provider = p.p
 }
 
 // WithMeterProvider specifies the metric.MeterProvider to use for instruments.
-func WithMeterProvider(p metric.MeterProvider) ClientMetricsOption {
+func WithMeterProvider(p metric.MeterProvider) TelemetryOption {
 	return &providerOpt{p: p}
 }
 
@@ -170,12 +177,12 @@ type attrOpt struct {
 	attrs map[string]string
 }
 
-func (a attrOpt) Resolve(opts *clientMetricsOptions) {
+func (a attrOpt) Resolve(opts *telemetryOptions) {
 	opts.attributes = a.attrs
 }
 
-// WithClientMetricsAttributes specifies the static attributes attachments.
-func WithClientMetricsAttributes(attr map[string]string) ClientMetricsOption {
+// WithTelemetryAttributes specifies the static attributes attachments.
+func WithTelemetryAttributes(attr map[string]string) TelemetryOption {
 	return &attrOpt{attrs: attr}
 }
 
@@ -183,23 +190,36 @@ type boundariesOpt struct {
 	boundaries []float64
 }
 
-func (b boundariesOpt) Resolve(opts *clientMetricsOptions) {
+func (b boundariesOpt) Resolve(opts *telemetryOptions) {
 	opts.explicitBucketBoundaries = b.boundaries
 }
 
 // WithExplicitBucketBoundaries overrides the default histogram bucket boundaries.
-func WithExplicitBucketBoundaries(boundaries []float64) ClientMetricsOption {
+func WithExplicitBucketBoundaries(boundaries []float64) TelemetryOption {
 	return &boundariesOpt{boundaries: boundaries}
 }
 
-func (config *clientMetricsOptions) meterProvider() metric.MeterProvider {
+type loggerOpt struct {
+	l *slog.Logger
+}
+
+func (l loggerOpt) Resolve(opts *telemetryOptions) {
+	opts.logger = l.l
+}
+
+// WithTelemetryLogger specifies a logger to record internal telemetry errors.
+func WithTelemetryLogger(l *slog.Logger) TelemetryOption {
+	return &loggerOpt{l: l}
+}
+
+func (config *telemetryOptions) meterProvider() metric.MeterProvider {
 	if config.provider != nil {
 		return config.provider
 	}
 	return otel.GetMeterProvider()
 }
 
-func (config *clientMetricsOptions) bucketBoundaries() []float64 {
+func (config *telemetryOptions) bucketBoundaries() []float64 {
 	if len(config.explicitBucketBoundaries) > 0 {
 		return config.explicitBucketBoundaries
 	}
@@ -208,48 +228,68 @@ func (config *clientMetricsOptions) bucketBoundaries() []float64 {
 
 // NewClientMetrics initializes and returns a new ClientMetrics instance.
 // It is intended to be called once per generated client during initialization.
-func NewClientMetrics(opts ...ClientMetricsOption) *ClientMetrics {
-	var config clientMetricsOptions
+func NewClientMetrics(opts ...TelemetryOption) *ClientMetrics {
+	var config telemetryOptions
 	for _, opt := range opts {
 		opt.Resolve(&config)
 	}
 
-	provider := config.meterProvider()
-
-	var meterAttrs []attribute.KeyValue
-	if val, ok := config.attributes[ClientService]; ok {
-		meterAttrs = append(meterAttrs, attribute.KeyValue{Key: attribute.Key(keyGCPClientService), Value: attribute.StringValue(val)})
-	}
-
-	meterOpts := []metric.MeterOption{
-		metric.WithInstrumentationVersion(config.attributes[ClientVersion]),
-		metric.WithSchemaURL(schemaURL),
-	}
-	if len(meterAttrs) > 0 {
-		meterOpts = append(meterOpts, metric.WithInstrumentationAttributes(meterAttrs...))
-	}
-
-	meter := provider.Meter(config.attributes[ClientArtifact], meterOpts...)
-
-	boundaries := config.bucketBoundaries()
-
-	duration, _ := meter.Float64Histogram(
-		metricName,
-		metric.WithDescription(metricDescription),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(boundaries...),
-	)
-
-	var attr []attribute.KeyValue
-	if val, ok := config.attributes[URLDomain]; ok {
-		attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyURLDomain), Value: attribute.StringValue(val)})
-	}
-	if val, ok := config.attributes[RPCSystem]; ok {
-		attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyRPCSystemName), Value: attribute.StringValue(val)})
-	}
-
 	return &ClientMetrics{
-		duration: duration,
-		attr:     attr,
+		get: sync.OnceValue(func() clientMetricsData {
+			provider := config.meterProvider()
+
+			var meterAttrs []attribute.KeyValue
+			if val, ok := config.attributes[ClientService]; ok {
+				meterAttrs = append(meterAttrs, attribute.KeyValue{Key: attribute.Key(keyGCPClientService), Value: attribute.StringValue(val)})
+			}
+
+			meterOpts := []metric.MeterOption{
+				metric.WithInstrumentationVersion(config.attributes[ClientVersion]),
+				metric.WithSchemaURL(schemaURL),
+			}
+			if len(meterAttrs) > 0 {
+				meterOpts = append(meterOpts, metric.WithInstrumentationAttributes(meterAttrs...))
+			}
+
+			meter := provider.Meter(config.attributes[ClientArtifact], meterOpts...)
+
+			boundaries := config.bucketBoundaries()
+
+			duration, err := meter.Float64Histogram(
+				metricName,
+				metric.WithDescription(metricDescription),
+				metric.WithUnit("s"),
+				metric.WithExplicitBucketBoundaries(boundaries...),
+			)
+			if err != nil && config.logger != nil {
+				config.logger.Warn("failed to initialize OTel duration histogram", "error", err)
+			}
+
+			var attr []attribute.KeyValue
+			if val, ok := config.attributes[URLDomain]; ok {
+				attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyURLDomain), Value: attribute.StringValue(val)})
+			}
+			if val, ok := config.attributes[RPCSystem]; ok {
+				attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyRPCSystemName), Value: attribute.StringValue(val)})
+			}
+			return clientMetricsData{
+				duration: duration,
+				attr:     attr,
+			}
+		}),
 	}
+}
+
+func (cm *ClientMetrics) durationHistogram() metric.Float64Histogram {
+	if cm == nil || cm.get == nil {
+		return nil
+	}
+	return cm.get().duration
+}
+
+func (cm *ClientMetrics) attributes() []attribute.KeyValue {
+	if cm == nil || cm.get == nil {
+		return nil
+	}
+	return cm.get().attr
 }
