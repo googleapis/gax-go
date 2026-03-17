@@ -375,6 +375,9 @@ func ExtractTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInf
 	}
 
 	st, ok := status.FromError(err)
+	if !ok {
+		st = status.FromContextError(err)
+	}
 	rpcStatusCode := grpcCodeToStatusString(st.Code())
 
 	var errType string
