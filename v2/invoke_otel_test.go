@@ -31,6 +31,7 @@ package gax
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -140,6 +141,27 @@ func TestInvokeWithMetrics(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "transport_telemetry_data",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				return context.Background(), func() {}
+			},
+			callFunc: func(ctx context.Context, settings CallSettings) error {
+				if td := ExtractTransportTelemetry(ctx); td != nil {
+					td.SetServerAddress("127.0.0.1")
+					td.SetServerPort(8080)
+				}
+				return nil
+			},
+			wantDataAttr: map[string]string{
+				"url.domain":               "test.domain",
+				"rpc.system.name":          "grpc",
+				"rpc.response.status_code": "OK",
+				"server.address":           "127.0.0.1",
+				"server.port":              "8080",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -207,7 +229,7 @@ func TestInvokeWithMetrics(t *testing.T) {
 
 			gotDataAttr := make(map[string]string)
 			for _, a := range point.Attributes.ToSlice() {
-				gotDataAttr[string(a.Key)] = a.Value.AsString()
+				gotDataAttr[string(a.Key)] = fmt.Sprintf("%v", a.Value.AsInterface())
 			}
 
 			if diff := cmp.Diff(tt.wantDataAttr, gotDataAttr); diff != "" {
