@@ -49,7 +49,9 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -593,6 +595,82 @@ func TestRecordMetric(t *testing.T) {
 				t.Errorf("DataPoint attributes mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestOpenTelemetryUnaryClientInterceptor(t *testing.T) {
+	interceptor := OpenTelemetryUnaryClientInterceptor()
+
+	// 1. Without TransportTelemetryData in context
+	ctx := context.Background()
+	invokerCalled := false
+	invoker := func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, opts ...grpc.CallOption) error {
+		invokerCalled = true
+		return nil
+	}
+	err := interceptor(ctx, "/TestService/TestMethod", nil, nil, nil, invoker)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !invokerCalled {
+		t.Errorf("expected invoker to be called")
+	}
+
+	// 2. With TransportTelemetryData in context
+	data := &TransportTelemetryData{}
+	ctx = InjectTransportTelemetry(context.Background(), data)
+	invokerCalled = false
+	invokerWithTarget := func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, opts ...grpc.CallOption) error {
+		invokerCalled = true
+		return nil
+	}
+
+	// We need a real ClientConn to call cc.Target()
+	cc, err := grpc.NewClient("127.0.0.1:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+	defer cc.Close()
+
+	err = interceptor(ctx, "/TestService/TestMethod", nil, nil, cc, invokerWithTarget)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !invokerCalled {
+		t.Errorf("expected invoker to be called")
+	}
+
+	if data.ServerAddress() != "127.0.0.1" {
+		t.Errorf("expected ServerAddress to be 127.0.0.1, got %q", data.ServerAddress())
+	}
+	if data.ServerPort() != 8080 {
+		t.Errorf("expected ServerPort to be 8080, got %d", data.ServerPort())
+	}
+}
+
+func TestExtractHostPort(t *testing.T) {
+	tests := []struct {
+		target   string
+		wantHost string
+		wantPort int
+	}{
+		{"127.0.0.1:8080", "127.0.0.1", 8080},
+		{"[::1]:9090", "::1", 9090},
+		{"dns:///localhost:443", "localhost", 443},
+		{"xds:///my-service:80", "my-service", 80},
+		{"https://example.com:443", "example.com", 443},
+		{"invalid-target", "invalid-target", 0},             // missing port
+		{"localhost:notanumber", "localhost:notanumber", 0}, // port is not int
+	}
+
+	for _, tt := range tests {
+		gotHost, gotPort := extractHostPort(tt.target)
+		if gotHost != tt.wantHost {
+			t.Errorf("extractHostPort(%q) host = %q, want %q", tt.target, gotHost, tt.wantHost)
+		}
+		if gotPort != tt.wantPort {
+			t.Errorf("extractHostPort(%q) port = %d, want %d", tt.target, gotPort, tt.wantPort)
+		}
 	}
 }
 

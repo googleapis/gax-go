@@ -34,7 +34,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +45,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -466,4 +469,44 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 	}
 
 	settings.clientMetrics.durationHistogram().Record(recordCtx, d.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// Extract the host and port from a target address
+func extractHostPort(target string) (string, int) {
+	if idx := strings.Index(target, "://"); idx != -1 {
+		target = target[idx+3:]
+		for strings.HasPrefix(target, "/") {
+			target = target[1:]
+		}
+	}
+	host, portStr, err := net.SplitHostPort(target)
+	if err != nil {
+		return target, 0
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return target, 0
+	}
+	return host, port
+}
+
+// OpenTelemetryUnaryClientInterceptor returns an interceptor that populates
+// TransportTelemetryData with the server peer address.
+func OpenTelemetryUnaryClientInterceptor() grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		transportData := ExtractTransportTelemetry(ctx)
+		if transportData == nil {
+			return invoker(ctx, method, req, reply, cc, opts...)
+		}
+
+		err := invoker(ctx, method, req, reply, cc, opts...)
+
+		if target := cc.Target(); target != "" {
+			host, port := extractHostPort(target)
+			transportData.SetServerAddress(host)
+			transportData.SetServerPort(port)
+		}
+
+		return err
+	}
 }
