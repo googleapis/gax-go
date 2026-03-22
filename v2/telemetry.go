@@ -31,12 +31,19 @@ package gax
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
+	"github.com/googleapis/gax-go/v2/apierror"
+	"github.com/googleapis/gax-go/v2/callctx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // TransportTelemetryData contains mutable telemetry information that the transport
@@ -292,4 +299,89 @@ func (cm *ClientMetrics) attributes() []attribute.KeyValue {
 		return nil
 	}
 	return cm.get().attr
+}
+
+var codeToStr = [...]string{
+	"OK",                  // codes.OK = 0
+	"CANCELLED",           // codes.Canceled = 1
+	"UNKNOWN",             // codes.Unknown = 2
+	"INVALID_ARGUMENT",    // codes.InvalidArgument = 3
+	"DEADLINE_EXCEEDED",   // codes.DeadlineExceeded = 4
+	"NOT_FOUND",           // codes.NotFound = 5
+	"ALREADY_EXISTS",      // codes.AlreadyExists = 6
+	"PERMISSION_DENIED",   // codes.PermissionDenied = 7
+	"RESOURCE_EXHAUSTED",  // codes.ResourceExhausted = 8
+	"FAILED_PRECONDITION", // codes.FailedPrecondition = 9
+	"ABORTED",             // codes.Aborted = 10
+	"OUT_OF_RANGE",        // codes.OutOfRange = 11
+	"UNIMPLEMENTED",       // codes.Unimplemented = 12
+	"INTERNAL",            // codes.Internal = 13
+	"UNAVAILABLE",         // codes.Unavailable = 14
+	"DATA_LOSS",           // codes.DataLoss = 15
+	"UNAUTHENTICATED",     // codes.Unauthenticated = 16
+}
+
+func grpcCodeToStatus(c codes.Code) string {
+	if int(c) >= 0 && int(c) < len(codeToStr) {
+		return codeToStr[c]
+	}
+	return "UNKNOWN"
+}
+
+func errorType(ctx context.Context, err error) (string, string) {
+	if err == nil {
+		return "", "OK"
+	}
+
+	st, ok := status.FromError(err)
+	rpcStatusCode := grpcCodeToStatus(st.Code())
+
+	var errType string
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		errType = "CLIENT_TIMEOUT"
+	} else if errors.Is(ctx.Err(), context.Canceled) {
+		errType = "CLIENT_CANCELLED"
+	} else if !ok || st.Code() == codes.Unknown || st.Code() == codes.Internal {
+		errType = fmt.Sprintf("%T", err)
+	} else {
+		errType = rpcStatusCode
+	}
+
+	if apierr, ok := apierror.FromError(err); ok {
+		if reason := apierr.Reason(); reason != "" {
+			errType = reason
+		}
+	}
+
+	return errType, rpcStatusCode
+}
+
+// recordMetric records a duration measurement for the configured metric.
+func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, err error) {
+	if settings.clientMetrics == nil || settings.clientMetrics.durationHistogram() == nil {
+		return
+	}
+
+	// Use context.WithoutCancel to ensure metric records even if context is canceled
+	// preserving any trace context that might be required for exemplars.
+	recordCtx := context.WithoutCancel(ctx)
+
+	// Pre-allocate to avoid repeated appends (5 is the max number of dynamic attributes added here)
+	attrs := make([]attribute.KeyValue, 0, len(settings.clientMetrics.attributes())+5)
+	attrs = append(attrs, settings.clientMetrics.attributes()...)
+
+	errType, statusCode := errorType(ctx, err)
+	if errType != "" {
+		attrs = append(attrs, attribute.String("error.type", errType))
+	}
+	attrs = append(attrs, attribute.String("rpc.response.status_code", statusCode))
+
+	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
+		attrs = append(attrs, attribute.String("rpc.method", rpcMethod))
+	}
+	if urlTemplate, ok := callctx.TelemetryFromContext(ctx, "url_template"); ok && urlTemplate != "" {
+		attrs = append(attrs, attribute.String("url.template", urlTemplate))
+	}
+
+	settings.clientMetrics.durationHistogram().Record(recordCtx, d.Seconds(), metric.WithAttributes(attrs...))
 }
