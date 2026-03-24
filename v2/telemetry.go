@@ -34,6 +34,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -403,6 +404,15 @@ func ParseTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInfo 
 		// If there's an actionable error, the reason takes precedence over our calculated error type.
 		if reason := parsedErr.Reason(); reason != "" {
 			errType = reason
+		} else if httpCode := parsedErr.HTTPCode(); httpCode > 0 {
+			errType = strconv.Itoa(httpCode)
+		}
+		if message := parsedErr.Message(); message != "" {
+			msg = message
+		} else if parsedErr.HTTPCode() > 0 {
+			// For HTTP errors, avoid returning the raw, unformatted err.Error() (e.g. "googleapi: got HTTP response...") 
+			// if the actual parsed message from the response is empty.
+			msg = ""
 		}
 		domain = parsedErr.Domain()
 		metadata = parsedErr.Metadata()
