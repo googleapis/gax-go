@@ -250,8 +250,6 @@ func (a *APIError) Error() string {
 
 // Message returns the original, unformatted error message from the underlying
 // googleapi.Error or gRPC Status, without additional details or context.
-// Experimental: This function is experimental and may be modified or removed in future versions,
-// regardless of any other documented package stability guarantees.
 func (a *APIError) Message() string {
 	if a.httpErr != nil {
 		return a.httpErr.Message

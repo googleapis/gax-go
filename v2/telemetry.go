@@ -342,14 +342,19 @@ type TelemetryErrorInfo struct {
 	// "PERMISSION_DENIED"), and falls back to %T for unhandled types. If an
 	// apierror.APIError is found, it uses its fine-grained Reason() (e.g.,
 	// "SERVICE_DISABLED").
+	// This is used by metrics, tracing, and logging.
 	ErrorType string
 	// StatusCode is the string representation of the RPC status code.
+	// This is used by metrics, tracing, and logging.
 	StatusCode string
 	// StatusMessage is the raw message from the error.
+	// This is used for structured logging.
 	StatusMessage string
 	// Domain is the domain of the error, extracted from an ErrorInfo, if available.
+	// This is used for structured logging.
 	Domain string
 	// Metadata is the metadata of the error, extracted from an ErrorInfo, if available.
+	// This is used for structured logging.
 	Metadata map[string]string
 
 	// _ struct{} prevents unkeyed struct literals, ensuring backwards
