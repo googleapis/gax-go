@@ -321,45 +321,100 @@ var codeToStr = [...]string{
 	"UNAUTHENTICATED",     // codes.Unauthenticated = 16
 }
 
-// GRPCCodeToStatusString converts a codes.Code to its string representation.
+// grpcCodeToStatusString converts a codes.Code to its string representation.
 // Experimental: This function is experimental and may be modified or removed in future versions,
 // regardless of any other documented package stability guarantees.
-func GRPCCodeToStatusString(c codes.Code) string {
+func grpcCodeToStatusString(c codes.Code) string {
 	if int(c) >= 0 && int(c) < len(codeToStr) {
 		return codeToStr[c]
 	}
 	return "UNKNOWN"
 }
 
-// TelemetryErrorType extracts the error type and status code from an error.
+// TelemetryErrorInfo contains the mapped error type and status code, as well as
+// additional details like status message, domain, and metadata, extracted from an error
+// for telemetry purposes.
+type TelemetryErrorInfo struct {
+	// ErrorType is a mapped string for the error type.
+	ErrorType string
+	// StatusCode is the string representation of the RPC status code.
+	StatusCode string
+	// StatusMessage is the raw message from the error.
+	StatusMessage string
+	// Domain is the domain of the error, extracted from an ErrorInfo, if available.
+	Domain string
+	// Metadata is the metadata of the error, extracted from an ErrorInfo, if available.
+	Metadata map[string]string
+
+	// _ struct{} prevents unkeyed struct literals, ensuring backwards
+	// compatibility when new fields are added in the future.
+	_ struct{}
+}
+
+// ParseTelemetryErrorInfo extracts the error type and status code from an error.
+// For stability, it maps client-side cancellations, timeouts, and known gRPC
+// status codes to standard string literals (e.g., "CLIENT_TIMEOUT",
+// "PERMISSION_DENIED"), and falls back to %T for unhandled types. If an
+// apierror.APIError is found, it will use its fine-grained Reason() (e.g.,
+// "SERVICE_DISABLED").
+//
 // Experimental: This function is experimental and may be modified or removed in future versions,
 // regardless of any other documented package stability guarantees.
-func TelemetryErrorType(ctx context.Context, err error) (string, string) {
+func ParseTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInfo {
 	if err == nil {
-		return "", "OK"
+		return TelemetryErrorInfo{ErrorType: "", StatusCode: "OK"}
 	}
 
 	st, ok := status.FromError(err)
-	rpcStatusCode := GRPCCodeToStatusString(st.Code())
+	rpcStatusCode := grpcCodeToStatusString(st.Code())
 
 	var errType string
+	// 1. Check if the local context expired or was cancelled. This is the only
+	// reliable way to distinguish a local client timeout from a server timeout
+	// because gRPC does not wrap context errors in its status.Error types.
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		errType = "CLIENT_TIMEOUT"
 	} else if errors.Is(ctx.Err(), context.Canceled) {
 		errType = "CLIENT_CANCELLED"
 	} else if !ok || st.Code() == codes.Unknown || st.Code() == codes.Internal {
+		// 2. If the error isn't a context breakdown and the gRPC framework
+		// doesn't "understand" it (returning ok=false or a generic catch-all
+		// bucket like Unknown/Internal), we "pack" the actual Go error type
+		// name into error.type (e.g., "*net.OpError"). This is per the error.type
+		// [spec](https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type).
+		// "When error.type is set to a type (e.g., an exception type), its canonical
+		// class name identifying the type within the artifact SHOULD be used."
 		errType = fmt.Sprintf("%T", err)
 	} else {
+		// 3. Otherwise, it is a well-understood gRPC protocol error (e.g.,
+		// PERMISSION_DENIED) likely returned by the server.
 		errType = rpcStatusCode
 	}
 
-	if apierr, ok := apierror.FromError(err); ok {
-		if reason := apierr.Reason(); reason != "" {
-			errType = reason
-		}
+	var msg, domain string
+	var metadata map[string]string
+	if ok {
+		msg = st.Message()
+	} else {
+		msg = err.Error()
 	}
 
-	return errType, rpcStatusCode
+	if parsedErr, parsedOk := apierror.ParseError(err, false); parsedOk {
+		// If there's an actionable error, the reason takes precedence over our calculated error type.
+		if reason := parsedErr.Reason(); reason != "" {
+			errType = reason
+		}
+		domain = parsedErr.Domain()
+		metadata = parsedErr.Metadata()
+	}
+
+	return TelemetryErrorInfo{
+		ErrorType:     errType,
+		StatusCode:    rpcStatusCode,
+		StatusMessage: msg,
+		Domain:        domain,
+		Metadata:      metadata,
+	}
 }
 
 // recordMetric records a duration measurement for the configured metric.
@@ -376,11 +431,11 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 	attrs := make([]attribute.KeyValue, 0, len(settings.clientMetrics.attributes())+5)
 	attrs = append(attrs, settings.clientMetrics.attributes()...)
 
-	errType, statusCode := TelemetryErrorType(ctx, err)
-	if errType != "" {
-		attrs = append(attrs, attribute.String("error.type", errType))
+	errInfo := ParseTelemetryErrorInfo(ctx, err)
+	if errInfo.ErrorType != "" {
+		attrs = append(attrs, attribute.String("error.type", errInfo.ErrorType))
 	}
-	attrs = append(attrs, attribute.String("rpc.response.status_code", statusCode))
+	attrs = append(attrs, attribute.String("rpc.response.status_code", errInfo.StatusCode))
 
 	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
 		attrs = append(attrs, attribute.String("rpc.method", rpcMethod))

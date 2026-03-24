@@ -338,7 +338,7 @@ func TestTransportTelemetry(t *testing.T) {
 	}
 }
 
-func TestRecordMetric(t *testing.T) {
+func TestParseTelemetryErrorInfo(t *testing.T) {
 	// Helper to construct a real apierror.APIError with an ErrorInfo
 	st := status.New(codes.PermissionDenied, "disabled")
 	stWithDetails, _ := st.WithDetails(&errdetails.ErrorInfo{Reason: "SERVICE_DISABLED", Domain: "googleapis.com"})
@@ -346,9 +346,95 @@ func TestRecordMetric(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		setupCtx     func() (context.Context, context.CancelFunc)
+		err          error
+		wantInfo     TelemetryErrorInfo
+	}{
+		{
+			name:     "success",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      nil,
+			wantInfo: TelemetryErrorInfo{ErrorType: "", StatusCode: "OK"},
+		},
+		{
+			name: "error_cancelled",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx, cancel
+			},
+			err: context.Canceled,
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "CLIENT_CANCELLED",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "context canceled",
+			},
+		},
+		{
+			name: "error_deadline",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithTimeout(context.Background(), 0)
+				return ctx, cancel
+			},
+			err: context.DeadlineExceeded,
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "CLIENT_TIMEOUT",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "context deadline exceeded",
+			},
+		},
+		{
+			name:     "error_apierror_reason",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      apiErr,
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "SERVICE_DISABLED",
+				StatusCode:    "PERMISSION_DENIED",
+				StatusMessage: "disabled",
+				Domain:        "googleapis.com",
+				Metadata:      nil,
+			},
+		},
+		{
+			name:     "error_unknown_type",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      errors.New("random io error"),
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "*errors.errorString",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "random io error",
+			},
+		},
+		{
+			name:     "error_invalid_grpc_code",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      status.Error(codes.Code(999), "unknown code"),
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "UNKNOWN",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "unknown code",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := tt.setupCtx()
+			defer cancel()
+
+			got := ParseTelemetryErrorInfo(ctx, tt.err)
+			if diff := cmp.Diff(tt.wantInfo, got, cmp.AllowUnexported(TelemetryErrorInfo{})); diff != "" {
+				t.Errorf("ParseTelemetryErrorInfo() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestRecordMetric(t *testing.T) {
+	tests := []struct {
+		name         string
 		method       string
 		template     string
-		setupCtx     func() (context.Context, context.CancelFunc)
 		err          error
 		wantSum      float64
 		wantDataAttr map[string]string
@@ -356,18 +442,14 @@ func TestRecordMetric(t *testing.T) {
 	}{
 		{
 			name:       "nil_metrics",
-			setupCtx:   func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
 			nilMetrics: true, // Should return early and not panic
 		},
 		{
 			name:     "success",
 			method:   "my.service.Method",
 			template: "/v1/test/{id}",
-			setupCtx: func() (context.Context, context.CancelFunc) {
-				return context.Background(), func() {}
-			},
-			err:     nil,
-			wantSum: 1.5,
+			err:      nil,
+			wantSum:  1.5,
 			wantDataAttr: map[string]string{
 				"url.domain":               "test.domain",
 				"rpc.system.name":          "grpc",
@@ -377,65 +459,9 @@ func TestRecordMetric(t *testing.T) {
 			},
 		},
 		{
-			name:     "error_cancelled",
+			name:     "error_recorded",
 			method:   "my.service.Method",
 			template: "/v1/test/{id}",
-			setupCtx: func() (context.Context, context.CancelFunc) {
-				ctx, cancel := context.WithCancel(context.Background())
-				cancel()
-				return ctx, cancel
-			},
-			err:     context.Canceled,
-			wantSum: 1.5,
-			wantDataAttr: map[string]string{
-				"url.domain":               "test.domain",
-				"rpc.system.name":          "grpc",
-				"rpc.response.status_code": "UNKNOWN",
-				"error.type":               "CLIENT_CANCELLED",
-				"rpc.method":               "my.service.Method",
-				"url.template":             "/v1/test/{id}",
-			},
-		},
-		{
-			name:     "error_deadline",
-			method:   "my.service.Method",
-			template: "/v1/test/{id}",
-			setupCtx: func() (context.Context, context.CancelFunc) {
-				ctx, cancel := context.WithTimeout(context.Background(), 0)
-				return ctx, cancel
-			},
-			err:     context.DeadlineExceeded,
-			wantSum: 1.5,
-			wantDataAttr: map[string]string{
-				"url.domain":               "test.domain",
-				"rpc.system.name":          "grpc",
-				"rpc.response.status_code": "UNKNOWN",
-				"error.type":               "CLIENT_TIMEOUT",
-				"rpc.method":               "my.service.Method",
-				"url.template":             "/v1/test/{id}",
-			},
-		},
-		{
-			name:     "error_apierror_reason",
-			method:   "my.service.Method",
-			template: "/v1/test/{id}",
-			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
-			err:      apiErr,
-			wantSum:  1.5,
-			wantDataAttr: map[string]string{
-				"url.domain":               "test.domain",
-				"rpc.system.name":          "grpc",
-				"rpc.response.status_code": "PERMISSION_DENIED",
-				"error.type":               "SERVICE_DISABLED",
-				"rpc.method":               "my.service.Method",
-				"url.template":             "/v1/test/{id}",
-			},
-		},
-		{
-			name:     "error_unknown_type",
-			method:   "my.service.Method",
-			template: "/v1/test/{id}",
-			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
 			err:      errors.New("random io error"),
 			wantSum:  1.5,
 			wantDataAttr: map[string]string{
@@ -447,28 +473,11 @@ func TestRecordMetric(t *testing.T) {
 				"url.template":             "/v1/test/{id}",
 			},
 		},
-		{
-			name:     "error_invalid_grpc_code",
-			method:   "my.service.Method",
-			template: "/v1/test/{id}",
-			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
-			err:      status.Error(codes.Code(999), "unknown code"),
-			wantSum:  1.5,
-			wantDataAttr: map[string]string{
-				"url.domain":               "test.domain",
-				"rpc.system.name":          "grpc",
-				"rpc.response.status_code": "UNKNOWN",
-				"error.type":               "UNKNOWN",
-				"rpc.method":               "my.service.Method",
-				"url.template":             "/v1/test/{id}",
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := tt.setupCtx()
-			defer cancel()
+			ctx := context.Background()
 
 			if tt.method != "" {
 				ctx = callctx.WithTelemetryContext(ctx, "rpc_method", tt.method)
