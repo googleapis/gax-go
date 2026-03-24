@@ -32,15 +32,25 @@ package gax
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
+	"math"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/googleapis/gax-go/v2/apierror"
+	"github.com/googleapis/gax-go/v2/callctx"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"google.golang.org/api/googleapi"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestNewClientMetrics(t *testing.T) {
@@ -170,13 +180,8 @@ func TestNewClientMetrics(t *testing.T) {
 				scopeAttrs[string(set.Key)] = set.Value.AsString()
 			}
 
-			if len(scopeAttrs) != len(tt.wantScopeAttr) {
-				t.Errorf("expected %d scope attributes, got %d (%v)", len(tt.wantScopeAttr), len(scopeAttrs), scopeAttrs)
-			}
-			for wantK, wantV := range tt.wantScopeAttr {
-				if gotV, ok := scopeAttrs[wantK]; !ok || gotV != wantV {
-					t.Errorf("expected scope attribute %s=%s, got %s", wantK, wantV, gotV)
-				}
+			if diff := cmp.Diff(tt.wantScopeAttr, scopeAttrs); diff != "" {
+				t.Errorf("Scope attributes mismatch (-want +got):\n%s", diff)
 			}
 
 			// Verify Exact Datapoint Attributes from the collected metric
@@ -194,13 +199,8 @@ func TestNewClientMetrics(t *testing.T) {
 				dpAttrs[string(set.Key)] = set.Value.AsString()
 			}
 
-			if len(dpAttrs) != len(tt.wantDataAttr) {
-				t.Errorf("expected %d datapoint attributes, got %d (%v)", len(tt.wantDataAttr), len(dpAttrs), dpAttrs)
-			}
-			for wantK, wantV := range tt.wantDataAttr {
-				if gotV, ok := dpAttrs[wantK]; !ok || gotV != wantV {
-					t.Errorf("expected datapoint attribute %s=%s, got %s", wantK, wantV, gotV)
-				}
+			if diff := cmp.Diff(tt.wantDataAttr, dpAttrs); diff != "" {
+				t.Errorf("DataPoint attributes mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -336,5 +336,280 @@ func TestTransportTelemetry(t *testing.T) {
 	}
 	if got.ResponseStatusCode() != 200 {
 		t.Errorf("got.ResponseStatusCode() = %d, want %d", got.ResponseStatusCode(), 200)
+	}
+}
+
+func TestExtractTelemetryErrorInfo(t *testing.T) {
+	// Helper to construct a real apierror.APIError with an ErrorInfo
+	st := status.New(codes.PermissionDenied, "disabled")
+	stWithDetails, _ := st.WithDetails(&errdetails.ErrorInfo{Reason: "SERVICE_DISABLED", Domain: "googleapis.com"})
+	apiErr, _ := apierror.FromError(stWithDetails.Err())
+
+	tests := []struct {
+		name     string
+		setupCtx func() (context.Context, context.CancelFunc)
+		err      error
+		wantInfo TelemetryErrorInfo
+	}{
+		{
+			name:     "success",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      nil,
+			wantInfo: TelemetryErrorInfo{ErrorType: "", StatusCode: "OK"},
+		},
+		{
+			name: "error_cancelled",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx, cancel
+			},
+			err: context.Canceled,
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "CLIENT_CANCELLED",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "context canceled",
+			},
+		},
+		{
+			name: "error_deadline",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithTimeout(context.Background(), 0)
+				return ctx, cancel
+			},
+			err: context.DeadlineExceeded,
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "CLIENT_TIMEOUT",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "context deadline exceeded",
+			},
+		},
+		{
+			name:     "error_apierror_reason",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      apiErr,
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "SERVICE_DISABLED",
+				StatusCode:    "PERMISSION_DENIED",
+				StatusMessage: "disabled",
+				Domain:        "googleapis.com",
+				Metadata:      nil,
+			},
+		},
+		{
+			name:     "error_unknown_type",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      errors.New("random io error"),
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "*errors.errorString",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "random io error",
+			},
+		},
+		{
+			name:     "error_invalid_grpc_code",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      status.Error(codes.Code(999), "unknown code"),
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "UNKNOWN",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "unknown code",
+			},
+		},
+		{
+			name:     "error_http_with_message",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      &googleapi.Error{Code: 404, Message: "not found"},
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "404",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "not found",
+			},
+		},
+		{
+			name:     "error_http_without_message",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      &googleapi.Error{Code: 500, Message: ""},
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "500",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := tt.setupCtx()
+			defer cancel()
+
+			got := ExtractTelemetryErrorInfo(ctx, tt.err)
+			if diff := cmp.Diff(tt.wantInfo, got, cmp.AllowUnexported(TelemetryErrorInfo{})); diff != "" {
+				t.Errorf("ExtractTelemetryErrorInfo() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestRecordMetric(t *testing.T) {
+	tests := []struct {
+		name         string
+		method       string
+		template     string
+		err          error
+		wantSum      float64
+		wantDataAttr map[string]string
+		nilMetrics   bool
+	}{
+		{
+			name:       "nil_metrics",
+			nilMetrics: true, // Should return early and not panic
+		},
+		{
+			name:     "success",
+			method:   "my.service.Method",
+			template: "/v1/test/{id}",
+			err:      nil,
+			wantSum:  1.5,
+			wantDataAttr: map[string]string{
+				"url.domain":               "test.domain",
+				"rpc.system.name":          "grpc",
+				"rpc.response.status_code": "OK",
+				"rpc.method":               "my.service.Method",
+				"url.template":             "/v1/test/{id}",
+			},
+		},
+		{
+			name:     "error_recorded",
+			method:   "my.service.Method",
+			template: "/v1/test/{id}",
+			err:      errors.New("random io error"),
+			wantSum:  1.5,
+			wantDataAttr: map[string]string{
+				"url.domain":               "test.domain",
+				"rpc.system.name":          "grpc",
+				"rpc.response.status_code": "UNKNOWN",
+				"error.type":               "*errors.errorString",
+				"rpc.method":               "my.service.Method",
+				"url.template":             "/v1/test/{id}",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			if tt.method != "" {
+				ctx = callctx.WithTelemetryContext(ctx, "rpc_method", tt.method)
+			}
+			if tt.template != "" {
+				ctx = callctx.WithTelemetryContext(ctx, "url_template", tt.template)
+			}
+
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+			settings := CallSettings{}
+			if !tt.nilMetrics {
+				opts := []TelemetryOption{
+					WithMeterProvider(provider),
+					WithTelemetryAttributes(map[string]string{
+						ClientArtifact: "test-artifact",
+						ClientService:  "test-service",
+						URLDomain:      "test.domain",
+						RPCSystem:      "grpc",
+					}),
+				}
+				cm := NewClientMetrics(opts...)
+				WithClientMetrics(cm).Resolve(&settings)
+			}
+
+			dur := time.Duration(tt.wantSum * float64(time.Second))
+			recordMetric(ctx, settings, dur, tt.err)
+
+			var rm metricdata.ResourceMetrics
+			if err := reader.Collect(context.Background(), &rm); err != nil {
+				t.Fatalf("failed to collect metrics: %v", err)
+			}
+
+			if tt.nilMetrics {
+				if len(rm.ScopeMetrics) > 0 {
+					t.Fatalf("expected 0 metrics recorded for nil clientMetrics")
+				}
+				return
+			}
+
+			if len(rm.ScopeMetrics) == 0 {
+				t.Fatalf("expected at least 1 ScopeMetrics")
+			}
+
+			scopeMetric := rm.ScopeMetrics[0]
+			if len(scopeMetric.Metrics) == 0 {
+				t.Fatalf("expected at least 1 Metric recorded")
+			}
+
+			metric := scopeMetric.Metrics[0]
+			if metric.Name != metricName {
+				t.Errorf("expected metric.Name %q, got %q", metricName, metric.Name)
+			}
+
+			histo, ok := metric.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("expected metricdata.Histogram[float64], got %T", metric.Data)
+			}
+
+			if len(histo.DataPoints) == 0 {
+				t.Fatalf("expected at least 1 DataPoint")
+			}
+
+			point := histo.DataPoints[0]
+
+			if math.Abs(point.Sum-tt.wantSum) > 1e-6 {
+				t.Errorf("expected float sum %f, got %f", tt.wantSum, point.Sum)
+			}
+			if point.Count != 1 {
+				t.Errorf("expected count 1, got %d", point.Count)
+			}
+
+			wantScopeAttr := map[string]string{
+				"gcp.client.service": "test-service",
+			}
+			gotScopeAttr := make(map[string]string)
+			for _, a := range scopeMetric.Scope.Attributes.ToSlice() {
+				gotScopeAttr[string(a.Key)] = a.Value.AsString()
+			}
+
+			if diff := cmp.Diff(wantScopeAttr, gotScopeAttr); diff != "" {
+				t.Errorf("Scope attributes mismatch (-want +got):\n%s", diff)
+			}
+
+			gotDataAttr := make(map[string]string)
+			for _, a := range point.Attributes.ToSlice() {
+				gotDataAttr[string(a.Key)] = a.Value.AsString()
+			}
+
+			if diff := cmp.Diff(tt.wantDataAttr, gotDataAttr); diff != "" {
+				t.Errorf("DataPoint attributes mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestClientMetrics_NilReceiver(t *testing.T) {
+	var cm *ClientMetrics
+	if cm.durationHistogram() != nil {
+		t.Errorf("expected nil durationHistogram for nil receiver")
+	}
+	if cm.attributes() != nil {
+		t.Errorf("expected nil attributes for nil receiver")
+	}
+
+	cm = &ClientMetrics{} // nil .get func
+	if cm.durationHistogram() != nil {
+		t.Errorf("expected nil durationHistogram for uninitialized ClientMetrics")
+	}
+	if cm.attributes() != nil {
+		t.Errorf("expected nil attributes for uninitialized ClientMetrics")
 	}
 }
