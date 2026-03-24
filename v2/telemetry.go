@@ -337,6 +337,11 @@ func grpcCodeToStatusString(c codes.Code) string {
 // for telemetry purposes.
 type TelemetryErrorInfo struct {
 	// ErrorType is a mapped string for the error type.
+	// For stability, this maps client-side cancellations, timeouts, and known gRPC
+	// status codes to standard string literals (e.g., "CLIENT_TIMEOUT",
+	// "PERMISSION_DENIED"), and falls back to %T for unhandled types. If an
+	// apierror.APIError is found, it uses its fine-grained Reason() (e.g.,
+	// "SERVICE_DISABLED").
 	ErrorType string
 	// StatusCode is the string representation of the RPC status code.
 	StatusCode string
@@ -352,16 +357,14 @@ type TelemetryErrorInfo struct {
 	_ struct{}
 }
 
-// ParseTelemetryErrorInfo extracts the error type and status code from an error.
-// For stability, it maps client-side cancellations, timeouts, and known gRPC
-// status codes to standard string literals (e.g., "CLIENT_TIMEOUT",
-// "PERMISSION_DENIED"), and falls back to %T for unhandled types. If an
-// apierror.APIError is found, it will use its fine-grained Reason() (e.g.,
-// "SERVICE_DISABLED").
+// ExtractTelemetryErrorInfo parses an error into a TelemetryErrorInfo struct.
+// It relies on standard gRPC status codes, apierror.APIError parsing, and
+// context inspection to determine the most accurate error classification and
+// provide detailed metadata for telemetry systems.
 //
 // Experimental: This function is experimental and may be modified or removed in future versions,
 // regardless of any other documented package stability guarantees.
-func ParseTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInfo {
+func ExtractTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInfo {
 	if err == nil {
 		return TelemetryErrorInfo{ErrorType: "", StatusCode: "OK"}
 	}
@@ -410,7 +413,7 @@ func ParseTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInfo 
 		if message := parsedErr.Message(); message != "" {
 			msg = message
 		} else if parsedErr.HTTPCode() > 0 {
-			// For HTTP errors, avoid returning the raw, unformatted err.Error() (e.g. "googleapi: got HTTP response...") 
+			// For HTTP errors, avoid returning the raw, unformatted err.Error() (e.g. "googleapi: got HTTP response...")
 			// if the actual parsed message from the response is empty.
 			msg = ""
 		}
@@ -441,7 +444,7 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 	attrs := make([]attribute.KeyValue, 0, len(settings.clientMetrics.attributes())+5)
 	attrs = append(attrs, settings.clientMetrics.attributes()...)
 
-	errInfo := ParseTelemetryErrorInfo(ctx, err)
+	errInfo := ExtractTelemetryErrorInfo(ctx, err)
 	if errInfo.ErrorType != "" {
 		attrs = append(attrs, attribute.String("error.type", errInfo.ErrorType))
 	}

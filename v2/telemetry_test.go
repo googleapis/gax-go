@@ -47,6 +47,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -338,17 +339,17 @@ func TestTransportTelemetry(t *testing.T) {
 	}
 }
 
-func TestParseTelemetryErrorInfo(t *testing.T) {
+func TestExtractTelemetryErrorInfo(t *testing.T) {
 	// Helper to construct a real apierror.APIError with an ErrorInfo
 	st := status.New(codes.PermissionDenied, "disabled")
 	stWithDetails, _ := st.WithDetails(&errdetails.ErrorInfo{Reason: "SERVICE_DISABLED", Domain: "googleapis.com"})
 	apiErr, _ := apierror.FromError(stWithDetails.Err())
 
 	tests := []struct {
-		name         string
-		setupCtx     func() (context.Context, context.CancelFunc)
-		err          error
-		wantInfo     TelemetryErrorInfo
+		name     string
+		setupCtx func() (context.Context, context.CancelFunc)
+		err      error
+		wantInfo TelemetryErrorInfo
 	}{
 		{
 			name:     "success",
@@ -415,6 +416,26 @@ func TestParseTelemetryErrorInfo(t *testing.T) {
 				StatusMessage: "unknown code",
 			},
 		},
+		{
+			name:     "error_http_with_message",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      &googleapi.Error{Code: 404, Message: "not found"},
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "404",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "not found",
+			},
+		},
+		{
+			name:     "error_http_without_message",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      &googleapi.Error{Code: 500, Message: ""},
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "500",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -422,9 +443,9 @@ func TestParseTelemetryErrorInfo(t *testing.T) {
 			ctx, cancel := tt.setupCtx()
 			defer cancel()
 
-			got := ParseTelemetryErrorInfo(ctx, tt.err)
+			got := ExtractTelemetryErrorInfo(ctx, tt.err)
 			if diff := cmp.Diff(tt.wantInfo, got, cmp.AllowUnexported(TelemetryErrorInfo{})); diff != "" {
-				t.Errorf("ParseTelemetryErrorInfo() mismatch (-want +got):\n%s", diff)
+				t.Errorf("ExtractTelemetryErrorInfo() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
