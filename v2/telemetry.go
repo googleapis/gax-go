@@ -412,11 +412,19 @@ func ExtractTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInf
 	}
 
 	if parsedErr, parsedOk := apierror.ParseError(err, false); parsedOk {
+		if httpCode := parsedErr.HTTPCode(); httpCode > 0 {
+			if grpcStatus := parsedErr.GRPCStatus(); grpcStatus != nil {
+				rpcStatusCode = grpcCodeToStatusString(grpcStatus.Code())
+				errType = rpcStatusCode
+			}
+			// Fallback to numeric HTTP code if gRPC status mapping yields UNKNOWN
+			if errType == "UNKNOWN" {
+				errType = strconv.Itoa(httpCode)
+			}
+		}
 		// If there's an actionable error, the reason takes precedence over our calculated error type.
 		if reason := parsedErr.Reason(); reason != "" {
 			errType = reason
-		} else if httpCode := parsedErr.HTTPCode(); httpCode > 0 {
-			errType = strconv.Itoa(httpCode)
 		}
 		if message := parsedErr.Message(); message != "" {
 			msg = message

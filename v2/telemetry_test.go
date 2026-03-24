@@ -421,8 +421,8 @@ func TestExtractTelemetryErrorInfo(t *testing.T) {
 			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
 			err:      &googleapi.Error{Code: 404, Message: "not found"},
 			wantInfo: TelemetryErrorInfo{
-				ErrorType:     "404",
-				StatusCode:    "UNKNOWN",
+				ErrorType:     "NOT_FOUND",
+				StatusCode:    "NOT_FOUND",
 				StatusMessage: "not found",
 			},
 		},
@@ -431,9 +431,19 @@ func TestExtractTelemetryErrorInfo(t *testing.T) {
 			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
 			err:      &googleapi.Error{Code: 500, Message: ""},
 			wantInfo: TelemetryErrorInfo{
-				ErrorType:     "500",
-				StatusCode:    "UNKNOWN",
+				ErrorType:     "INTERNAL",
+				StatusCode:    "INTERNAL",
 				StatusMessage: "",
+			},
+		},
+		{
+			name:     "error_http_unmapped_code",
+			setupCtx: func() (context.Context, context.CancelFunc) { return context.Background(), func() {} },
+			err:      &googleapi.Error{Code: 999, Message: "weird code"},
+			wantInfo: TelemetryErrorInfo{
+				ErrorType:     "999",
+				StatusCode:    "UNKNOWN",
+				StatusMessage: "weird code",
 			},
 		},
 	}
