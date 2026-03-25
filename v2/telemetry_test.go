@@ -367,7 +367,7 @@ func TestExtractTelemetryErrorInfo(t *testing.T) {
 			err: context.Canceled,
 			wantInfo: TelemetryErrorInfo{
 				ErrorType:     "CLIENT_CANCELLED",
-				StatusCode:    "UNKNOWN",
+				StatusCode:    "CANCELED",
 				StatusMessage: "context canceled",
 			},
 		},
@@ -380,7 +380,7 @@ func TestExtractTelemetryErrorInfo(t *testing.T) {
 			err: context.DeadlineExceeded,
 			wantInfo: TelemetryErrorInfo{
 				ErrorType:     "CLIENT_TIMEOUT",
-				StatusCode:    "UNKNOWN",
+				StatusCode:    "DEADLINE_EXCEEDED",
 				StatusMessage: "context deadline exceeded",
 			},
 		},
