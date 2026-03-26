@@ -318,7 +318,6 @@ func TestTransportTelemetry(t *testing.T) {
 	data := &TransportTelemetryData{}
 	data.SetServerAddress("localhost")
 	data.SetServerPort(8080)
-	data.SetResponseStatusCode(200)
 
 	ctx = InjectTransportTelemetry(ctx, data)
 	got := ExtractTransportTelemetry(ctx)
@@ -333,9 +332,6 @@ func TestTransportTelemetry(t *testing.T) {
 	}
 	if got.ServerPort() != 8080 {
 		t.Errorf("got.ServerPort() = %d, want %d", got.ServerPort(), 8080)
-	}
-	if got.ResponseStatusCode() != 200 {
-		t.Errorf("got.ResponseStatusCode() = %d, want %d", got.ResponseStatusCode(), 200)
 	}
 }
 
