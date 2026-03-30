@@ -39,27 +39,31 @@ func TestIsFeatureEnabled(t *testing.T) {
 		name          string
 		envVar        string
 		envValue      string
+		featureName   string
 		expected      bool
 		expectedCache bool
 	}{
 		{
-			name:          "EnabledFeature",
+			name:          "EnabledExperimentalFeature",
 			envVar:        "GOOGLE_SDK_GO_EXPERIMENTAL_TRACING",
 			envValue:      "true",
+			featureName:   "TRACING",
 			expected:      true,
 			expectedCache: true,
 		},
 		{
-			name:          "DisabledFeature",
+			name:          "DisabledExperimentalFeature",
 			envVar:        "GOOGLE_SDK_GO_EXPERIMENTAL_ANOTHER",
 			envValue:      "false",
+			featureName:   "ANOTHER",
 			expected:      false,
 			expectedCache: false,
 		},
 		{
-			name:          "MissingFeature",
+			name:          "MissingExperimentalFeature",
 			envVar:        "GOOGLE_SDK_GO_EXPERIMENTAL_MISSING",
 			envValue:      "",
+			featureName:   "MISSING",
 			expected:      false,
 			expectedCache: false,
 		},
@@ -67,6 +71,7 @@ func TestIsFeatureEnabled(t *testing.T) {
 			name:          "CaseInsensitiveTrue",
 			envVar:        "GOOGLE_SDK_GO_EXPERIMENTAL_MIXED_CASE",
 			envValue:      "True",
+			featureName:   "MIXED_CASE",
 			expected:      true,
 			expectedCache: true,
 		},
@@ -74,13 +79,39 @@ func TestIsFeatureEnabled(t *testing.T) {
 			name:          "CaseInsensitiveTrue",
 			envVar:        "GOOGLE_SDK_GO_EXPERIMENTAL_UPPER_CASE",
 			envValue:      "TRUE",
+			featureName:   "UPPER_CASE",
 			expected:      true,
 			expectedCache: true,
 		},
 		{
 			name:          "OtherValue",
 			envVar:        "GOOGLE_SDK_GO_EXPERIMENTAL_INVALID",
+			featureName:   "INVALID",
 			envValue:      "1",
+			expected:      false,
+			expectedCache: false,
+		},
+		{
+			name:          "EnabledFeature",
+			envVar:        "GOOGLE_SDK_GO_TRACING",
+			envValue:      "true",
+			featureName:   "TRACING",
+			expected:      true,
+			expectedCache: true,
+		},
+		{
+			name:          "DisabledFeature",
+			envVar:        "GOOGLE_SDK_GO_ANOTHER",
+			envValue:      "false",
+			featureName:   "ANOTHER",
+			expected:      false,
+			expectedCache: false,
+		},
+		{
+			name:          "MissingFeature",
+			envVar:        "GOOGLE_SDK_GO_MISSING",
+			envValue:      "",
+			featureName:   "MISSING",
 			expected:      false,
 			expectedCache: false,
 		},
@@ -96,14 +127,14 @@ func TestIsFeatureEnabled(t *testing.T) {
 				defer os.Unsetenv(tt.envVar)
 			}
 
-			if got := IsFeatureEnabled(tt.envVar[len("GOOGLE_SDK_GO_EXPERIMENTAL_"):]); got != tt.expected {
+			if got := IsFeatureEnabled(tt.featureName); got != tt.expected {
 				t.Errorf("IsFeatureEnabled() = %v, want %v", got, tt.expected)
 			}
 
 			// Verify caching behavior after the first call
-			if tt.expectedCache && featureEnabledStore[tt.envVar[len("GOOGLE_SDK_GO_EXPERIMENTAL_"):]] != true {
+			if tt.expectedCache && featureEnabledStore[tt.featureName] != true {
 				t.Errorf("Feature %s not correctly cached as true", tt.envVar)
-			} else if !tt.expectedCache && featureEnabledStore[tt.envVar[len("GOOGLE_SDK_GO_EXPERIMENTAL_"):]] == true {
+			} else if !tt.expectedCache && featureEnabledStore[tt.featureName] == true {
 				t.Errorf("Feature %s incorrectly cached as true", tt.envVar)
 			}
 		})
