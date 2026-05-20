@@ -42,7 +42,9 @@ import (
 	"github.com/googleapis/gax-go/v2/callctx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -466,4 +468,82 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 	}
 
 	settings.clientMetrics.durationHistogram().Record(recordCtx, d.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// StartClientRequestSpan starts a client request span if tracing is enabled.
+// It reads the span name from the context (key: client_span_name) and falls back to rpc_method.
+// It returns the updated context and a closure to end the span, which avoids leaking OTel types to callers.
+func StartClientRequestSpan(ctx context.Context) (context.Context, func(error)) {
+	if !IsFeatureEnabled("TRACING") {
+		return ctx, func(error) {}
+	}
+	spanName, _ := callctx.TelemetryFromContext(ctx, "client_span_name")
+	if spanName == "" {
+		spanName, _ = callctx.TelemetryFromContext(ctx, "rpc_method")
+		if spanName == "" {
+			spanName = "ClientRequest"
+		}
+	}
+
+	tp := otel.GetTracerProvider()
+	tracer := tp.Tracer("github.com/googleapis/gax-go/v2")
+
+	ctx, span := tracer.Start(ctx, spanName, trace.WithSpanKind(trace.SpanKindInternal))
+
+	// Add static attributes from context if available
+	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
+		span.SetAttributes(attribute.String("rpc.method", rpcMethod))
+	}
+	if urlTemplate, ok := callctx.TelemetryFromContext(ctx, "url_template"); ok && urlTemplate != "" {
+		span.SetAttributes(attribute.String("url.template", urlTemplate))
+	}
+	if resName, ok := callctx.TelemetryFromContext(ctx, "resource_name"); ok && resName != "" {
+		span.SetAttributes(attribute.String("gcp.resource.destination.id", resName))
+	}
+
+	return ctx, func(err error) {
+		EndClientRequestSpan(ctx, span, err)
+	}
+}
+
+// EndClientRequestSpan ends the client request span and records error details if present.
+func EndClientRequestSpan(ctx context.Context, span trace.Span, err error) {
+	if span == nil {
+		return
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+
+		// Extract structured error info
+		errInfo := ExtractTelemetryErrorInfo(ctx, err)
+		if errInfo.ErrorType != "" {
+			span.SetAttributes(attribute.String("error.type", errInfo.ErrorType))
+		}
+		span.SetAttributes(attribute.String("rpc.response.status_code", errInfo.StatusCode))
+		if errInfo.StatusMessage != "" {
+			span.SetAttributes(attribute.String("status.message", errInfo.StatusMessage))
+		}
+		if errInfo.Domain != "" {
+			span.SetAttributes(attribute.String("gcp.errors.domain", errInfo.Domain))
+		}
+		for k, v := range errInfo.Metadata {
+			span.SetAttributes(attribute.String("gcp.errors.metadata."+k, v))
+		}
+	} else {
+		span.SetStatus(otelcodes.Ok, "OK")
+		span.SetAttributes(attribute.String("rpc.response.status_code", "OK"))
+	}
+
+	// Extract transport telemetry if available
+	if td := ExtractTransportTelemetry(ctx); td != nil {
+		if td.ServerAddress() != "" {
+			span.SetAttributes(attribute.String("server.address", td.ServerAddress()))
+		}
+		if td.ServerPort() != 0 {
+			span.SetAttributes(attribute.Int("server.port", td.ServerPort()))
+		}
+	}
+
+	span.End()
 }
