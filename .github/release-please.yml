@@ -1,0 +1,6 @@
+handleGHRelease: true
+manifest: true
+tagPullRequestNumber: true
+manifestFile: v2/.release-please-manifest.json
+manifestConfig: v2/release-please-config.json
+releaseType: go-librarian
