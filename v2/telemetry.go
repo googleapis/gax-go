@@ -435,10 +435,6 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 		return
 	}
 
-	// Use context.WithoutCancel to ensure metric records even if context is canceled
-	// preserving any trace context that might be required for exemplars.
-	recordCtx := context.WithoutCancel(ctx)
-
 	// Pre-allocate to avoid repeated appends (5 is the max number of dynamic attributes added here)
 	attrs := make([]attribute.KeyValue, 0, len(settings.clientMetrics.attributes())+5)
 	attrs = append(attrs, settings.clientMetrics.attributes()...)
@@ -467,7 +463,7 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 		attrs = append(attrs, attribute.String("url.template", urlTemplate))
 	}
 
-	settings.clientMetrics.durationHistogram().Record(recordCtx, d.Seconds(), metric.WithAttributes(attrs...))
+	settings.clientMetrics.durationHistogram().Record(ctx, d.Seconds(), metric.WithAttributes(attrs...))
 }
 
 // StartClientRequestSpan starts a client request span if tracing is enabled.
