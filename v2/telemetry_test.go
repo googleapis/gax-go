@@ -177,7 +177,7 @@ func TestNewClientMetrics(t *testing.T) {
 			// Verify Exact Scope Attributes
 			scopeAttrs := make(map[string]string)
 			for _, set := range sm.Scope.Attributes.ToSlice() {
-				scopeAttrs[string(set.Key)] = set.Value.AsString()
+				scopeAttrs[string(set.Key)] = set.Value.String()
 			}
 
 			if diff := cmp.Diff(tt.wantScopeAttr, scopeAttrs); diff != "" {
@@ -196,7 +196,7 @@ func TestNewClientMetrics(t *testing.T) {
 
 			dpAttrs := make(map[string]string)
 			for _, set := range dp.Attributes.ToSlice() {
-				dpAttrs[string(set.Key)] = set.Value.AsString()
+				dpAttrs[string(set.Key)] = set.Value.String()
 			}
 
 			if diff := cmp.Diff(tt.wantDataAttr, dpAttrs); diff != "" {
@@ -318,6 +318,7 @@ func TestTransportTelemetry(t *testing.T) {
 	data := &TransportTelemetryData{}
 	data.SetServerAddress("localhost")
 	data.SetServerPort(8080)
+	data.SetHTTPStatusCode(200)
 
 	ctx = InjectTransportTelemetry(ctx, data)
 	got := ExtractTransportTelemetry(ctx)
@@ -332,6 +333,9 @@ func TestTransportTelemetry(t *testing.T) {
 	}
 	if got.ServerPort() != 8080 {
 		t.Errorf("got.ServerPort() = %d, want %d", got.ServerPort(), 8080)
+	}
+	if got.HTTPStatusCode() != 200 {
+		t.Errorf("got.HTTPStatusCode() = %d, want %d", got.HTTPStatusCode(), 200)
 	}
 }
 
@@ -449,13 +453,15 @@ func TestExtractTelemetryErrorInfo(t *testing.T) {
 
 func TestRecordMetric(t *testing.T) {
 	tests := []struct {
-		name         string
-		method       string
-		template     string
-		err          error
-		wantSum      float64
-		wantDataAttr map[string]string
-		nilMetrics   bool
+		name          string
+		method        string
+		template      string
+		err           error
+		wantSum       float64
+		wantDataAttr  map[string]string
+		nilMetrics    bool
+		transportData *TransportTelemetryData
+		rpcSystem     string
 	}{
 		{
 			name:       "nil_metrics",
@@ -490,6 +496,29 @@ func TestRecordMetric(t *testing.T) {
 				"url.template":             "/v1/test/{id}",
 			},
 		},
+		{
+			name:      "http_success_with_status_code",
+			method:    "my.service.Method",
+			template:  "/v1/test/{id}",
+			err:       nil,
+			wantSum:   1.5,
+			rpcSystem: "http",
+			transportData: &TransportTelemetryData{
+				serverAddress:  "localhost",
+				serverPort:     8080,
+				httpStatusCode: 200,
+			},
+			wantDataAttr: map[string]string{
+				"url.domain":                "test.domain",
+				"rpc.system.name":           "http",
+				"rpc.response.status_code":  "OK",
+				"rpc.method":                "my.service.Method",
+				"url.template":              "/v1/test/{id}",
+				"server.address":            "localhost",
+				"server.port":               "8080",
+				"http.response.status_code": "200",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -502,19 +531,26 @@ func TestRecordMetric(t *testing.T) {
 			if tt.template != "" {
 				ctx = callctx.WithTelemetryContext(ctx, "url_template", tt.template)
 			}
+			if tt.transportData != nil {
+				ctx = InjectTransportTelemetry(ctx, tt.transportData)
+			}
 
 			reader := sdkmetric.NewManualReader()
 			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 
 			settings := CallSettings{}
 			if !tt.nilMetrics {
+				rpcSys := "grpc"
+				if tt.rpcSystem != "" {
+					rpcSys = tt.rpcSystem
+				}
 				opts := []TelemetryOption{
 					WithMeterProvider(provider),
 					WithTelemetryAttributes(map[string]string{
 						ClientArtifact: "test-artifact",
 						ClientService:  "test-service",
 						URLDomain:      "test.domain",
-						RPCSystem:      "grpc",
+						RPCSystem:      rpcSys,
 					}),
 				}
 				cm := NewClientMetrics(opts...)
@@ -582,7 +618,7 @@ func TestRecordMetric(t *testing.T) {
 
 			gotDataAttr := make(map[string]string)
 			for _, a := range point.Attributes.ToSlice() {
-				gotDataAttr[string(a.Key)] = a.Value.AsString()
+				gotDataAttr[string(a.Key)] = a.Value.String()
 			}
 
 			if diff := cmp.Diff(tt.wantDataAttr, gotDataAttr); diff != "" {
