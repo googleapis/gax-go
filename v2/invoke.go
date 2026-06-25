@@ -97,6 +97,14 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		}()
 	}
 
+	var endSpan func(error)
+	if IsFeatureEnabled("TRACING") {
+		ctx, endSpan = StartClientRequestSpan(ctx)
+		defer func() {
+			endSpan(err)
+		}()
+	}
+
 	retryCount := 0
 	// Feature gate: GOOGLE_SDK_GO_EXPERIMENTAL_TRACING=true
 	tracingEnabled := IsFeatureEnabled("TRACING")
