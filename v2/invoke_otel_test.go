@@ -150,15 +150,17 @@ func TestInvokeWithMetrics(t *testing.T) {
 				if td := ExtractTransportTelemetry(ctx); td != nil {
 					td.SetServerAddress("127.0.0.1")
 					td.SetServerPort(8080)
+					td.SetHTTPStatusCode(200)
 				}
 				return nil
 			},
 			wantDataAttr: map[string]string{
-				"url.domain":               "test.domain",
-				"rpc.system.name":          "grpc",
-				"rpc.response.status_code": "OK",
-				"server.address":           "127.0.0.1",
-				"server.port":              "8080",
+				"url.domain":                "test.domain",
+				"rpc.system.name":           "grpc",
+				"rpc.response.status_code":  "OK",
+				"server.address":            "127.0.0.1",
+				"server.port":               "8080",
+				"http.response.status_code": "200",
 			},
 			wantErr: false,
 		},
