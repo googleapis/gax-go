@@ -18,5 +18,12 @@
         "constraints": {
             "go": "1.25"
         }
-    }
+    },
+    "packageRules": [
+      {
+        "description": "prevent go version upgrades",
+        "matchManagers": ["gomod"],
+        "constraintsFiltering": "strict"
+      }
+    ]
 }
