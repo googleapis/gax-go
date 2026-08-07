@@ -142,12 +142,16 @@ var defaultHistogramBoundaries = []float64{
 	0.0, 0.0001, 0.0005, 0.0010, 0.005, 0.010, 0.050, 0.100, 0.5, 1.0, 5.0, 10.0, 60.0, 300.0, 900.0, 3600.0,
 }
 
-// ClientMetrics contains the pre-allocated OpenTelemetry instruments and attributes
+// ClientTelemetry contains the pre-allocated OpenTelemetry instruments, attributes and state
 // for a specific generated Google Cloud client library.
-// There should be exactly one ClientMetrics instance instantiated per generated client.
-type ClientMetrics struct {
+// There should be exactly one ClientTelemetry instance instantiated per generated client.
+type ClientTelemetry struct {
 	get func() clientMetricsData
 }
+
+// ClientMetrics is a direct alias of ClientTelemetry to preserve backward compatibility
+// across existing generated client configurations.
+type ClientMetrics = ClientTelemetry
 
 type clientMetricsData struct {
 	duration metric.Float64Histogram
@@ -236,13 +240,13 @@ func (config *telemetryOptions) bucketBoundaries() []float64 {
 
 // NewClientMetrics initializes and returns a new ClientMetrics instance.
 // It is intended to be called once per generated client during initialization.
-func NewClientMetrics(opts ...TelemetryOption) *ClientMetrics {
+func NewClientMetrics(opts ...TelemetryOption) *ClientTelemetry {
 	var config telemetryOptions
 	for _, opt := range opts {
 		opt.Resolve(&config)
 	}
 
-	return &ClientMetrics{
+	return &ClientTelemetry{
 		get: sync.OnceValue(func() clientMetricsData {
 			provider := config.meterProvider()
 
@@ -288,14 +292,14 @@ func NewClientMetrics(opts ...TelemetryOption) *ClientMetrics {
 	}
 }
 
-func (cm *ClientMetrics) durationHistogram() metric.Float64Histogram {
+func (cm *ClientTelemetry) durationHistogram() metric.Float64Histogram {
 	if cm == nil || cm.get == nil {
 		return nil
 	}
 	return cm.get().duration
 }
 
-func (cm *ClientMetrics) attributes() []attribute.KeyValue {
+func (cm *ClientTelemetry) attributes() []attribute.KeyValue {
 	if cm == nil || cm.get == nil {
 		return nil
 	}
@@ -435,6 +439,26 @@ func ExtractTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInf
 		StatusMessage: msg,
 		Domain:        domain,
 		Metadata:      metadata,
+	}
+}
+
+// TelemetryState represents the evaluated state of experimental telemetry features.
+type TelemetryState struct {
+	Metrics bool
+	Tracing bool
+	Logging bool
+}
+
+// AnyEnabled returns true if any telemetry feature is enabled.
+func (t TelemetryState) AnyEnabled() bool {
+	return t.Metrics || t.Tracing || t.Logging
+}
+
+// recordTelemetry records telemetry (metrics, tracing, logging) for the RPC.
+// Currently it only delegates to recordMetric pending further refactoring.
+func recordTelemetry(ctx context.Context, settings CallSettings, d time.Duration, err error, state TelemetryState) {
+	if state.Metrics {
+		recordMetric(ctx, settings, d, err)
 	}
 }
 

@@ -89,20 +89,24 @@ func invoke(ctx context.Context, call APICall, settings CallSettings, sp sleeper
 		ctx = c
 	}
 
-	if IsFeatureEnabled("METRICS") {
+	state := TelemetryState{
+		Metrics: IsFeatureEnabled("METRICS"),
+		Tracing: IsFeatureEnabled("TRACING"),
+		Logging: IsFeatureEnabled("LOGGING"),
+	}
+
+	if state.AnyEnabled() {
 		start := time.Now()
 		ctx = InjectTransportTelemetry(ctx, &TransportTelemetryData{})
 		defer func() {
-			recordMetric(ctx, settings, time.Since(start), err)
+			recordTelemetry(ctx, settings, time.Since(start), err, state)
 		}()
 	}
 
 	retryCount := 0
-	// Feature gate: GOOGLE_SDK_GO_EXPERIMENTAL_TRACING=true
-	tracingEnabled := IsFeatureEnabled("TRACING")
 	for {
 		ctxToUse := ctx
-		if tracingEnabled {
+		if state.AnyEnabled() {
 			ctxToUse = withRetryCount(ctx, retryCount)
 		}
 		err = call(ctxToUse, settings)
