@@ -47,8 +47,8 @@ gotestsum --packages="./..." \
     -- "${go_test_args[@]}" 2>&1 | tee sponge_log.log
 exit_code=$(($exit_code + $?))
 
-# Send logs to Flaky Bot for continuous builds.
-if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"continuous"* ]]; then
+# Send logs to Flaky Bot for nightly builds.
+if [[ $KOKORO_BUILD_ARTIFACTS_SUBDIR = *"nightly"* ]]; then
   cd ..
   chmod +x $KOKORO_GFILE_DIR/linux_amd64/flakybot
   $KOKORO_GFILE_DIR/linux_amd64/flakybot
