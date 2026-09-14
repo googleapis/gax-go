@@ -6,11 +6,6 @@ set -eo
 # Display commands being run
 set -x
 
-if [[ $KOKORO_JOB_NAME != *"latest-version"* ]]; then
-  exit 0
-fi
-
-
 # In our latest version, do basic checks and module staleness checks.
 if [[ $KOKORO_JOB_NAME == *"latest-version"* ]]; then
 
