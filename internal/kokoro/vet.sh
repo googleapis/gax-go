@@ -29,6 +29,6 @@ fi
 
 
 # In our earliest version, do static checking
-if [[ $KOKORO_JOB_NAME == *"latest-version"* ]]; then
+if [[ $KOKORO_JOB_NAME == *"earliest-version"* ]]; then
   staticcheck ./... 
 fi
