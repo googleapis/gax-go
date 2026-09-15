@@ -37,16 +37,20 @@ import (
 	"math"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/googleapis/gax-go/v2/callctx"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
@@ -645,3 +649,310 @@ func TestClientMetrics_NilReceiver(t *testing.T) {
 		t.Errorf("expected nil attributes for uninitialized ClientMetrics")
 	}
 }
+
+func TestNewClientTracing(t *testing.T) {
+	customProvider := tracenoop.NewTracerProvider()
+
+	tests := []struct {
+		name      string
+		opts      []TracingOption
+		wantAttr  map[string]string
+		useCustom bool
+	}{
+		{
+			name: "default provider and empty attributes",
+			opts: []TracingOption{
+				WithTracingAttributes(map[string]string{
+					ClientArtifact: "test-lib",
+					ClientVersion:  "v1.0.0",
+				}),
+			},
+			wantAttr: map[string]string{},
+		},
+		{
+			name: "custom provider and static attributes",
+			opts: []TracingOption{
+				WithTracingAttributes(map[string]string{
+					ClientArtifact: "test-lib-2",
+					ClientVersion:  "v1.0.1",
+					ClientService:  "myservice",
+					RPCSystem:      "grpc",
+					URLDomain:      "test.domain",
+					"ignored.key":  "ignored",
+				}),
+			},
+			useCustom: true,
+			wantAttr: map[string]string{
+				"url.domain":         "test.domain",
+				"rpc.system.name":    "grpc",
+				"gcp.client.service": "myservice",
+			},
+		},
+		{
+			name: "all static attributes with default provider",
+			opts: []TracingOption{
+				WithTracingAttributes(map[string]string{
+					ClientArtifact: "test-lib-3",
+					ClientVersion:  "v1.0.2",
+					ClientService:  "myservice-http",
+					RPCSystem:      "http",
+					URLDomain:      "http.test.domain",
+				}),
+			},
+			wantAttr: map[string]string{
+				"url.domain":         "http.test.domain",
+				"rpc.system.name":    "http",
+				"gcp.client.service": "myservice-http",
+			},
+		},
+		{
+			name:     "no options",
+			opts:     nil,
+			wantAttr: map[string]string{},
+		},
+		{
+			name: "options with nil entries",
+			opts: []TracingOption{
+				nil,
+				WithTracingAttributes(map[string]string{
+					ClientArtifact: "test-lib-nil-opt",
+					ClientVersion:  "v1.0.0",
+					URLDomain:      "nil.domain",
+				}),
+				nil,
+			},
+			wantAttr: map[string]string{
+				"url.domain": "nil.domain",
+			},
+		},
+		{
+			name: "multiple options override previous",
+			opts: []TracingOption{
+				WithTracingAttributes(map[string]string{
+					ClientArtifact: "first-artifact",
+					URLDomain:      "first.domain",
+				}),
+				WithTracingAttributes(map[string]string{
+					ClientArtifact: "second-artifact",
+					URLDomain:      "second.domain",
+				}),
+			},
+			wantAttr: map[string]string{
+				"url.domain": "second.domain",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := tt.opts
+			if tt.useCustom {
+				opts = append(opts, WithTracerProvider(customProvider))
+			}
+
+			ct := NewClientTracing(opts...)
+			if ct == nil {
+				t.Fatalf("expected non-nil ClientTracing")
+			}
+			if ct.tracer() == nil {
+				t.Fatalf("expected non-nil tracer")
+			}
+
+			gotAttr := make(map[string]string)
+			for _, a := range ct.attributes() {
+				gotAttr[string(a.Key)] = a.Value.AsString()
+			}
+
+			if diff := cmp.Diff(tt.wantAttr, gotAttr); diff != "" {
+				t.Errorf("Attributes mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestNewClientTracing_GlobalFallback(t *testing.T) {
+	t.Run("unspecified provider delegates to otel.GetTracerProvider", func(t *testing.T) {
+		globalSpy := &spyTracerProvider{}
+		prev := otel.GetTracerProvider()
+		otel.SetTracerProvider(globalSpy)
+		t.Cleanup(func() {
+			otel.SetTracerProvider(prev)
+		})
+		initialCalls := globalSpy.callCount
+
+		opts := []TracingOption{
+			WithTracingAttributes(map[string]string{
+				ClientArtifact: "test-global-fallback",
+			}),
+		}
+		ct := NewClientTracing(opts...)
+		if ct == nil {
+			t.Fatalf("expected non-nil ClientTracing")
+		}
+		if globalSpy.callCount != initialCalls {
+			t.Fatalf("expected 0 new calls before accessing tracer, got %d", globalSpy.callCount-initialCalls)
+		}
+		if ct.tracer() == nil {
+			t.Errorf("expected non-nil tracer")
+		}
+		if globalSpy.callCount-initialCalls != 1 {
+			t.Errorf("expected global provider to be invoked 1 time, got %d", globalSpy.callCount-initialCalls)
+		}
+		if globalSpy.tracerName != "test-global-fallback" {
+			t.Errorf("expected tracer name %q, got %q", "test-global-fallback", globalSpy.tracerName)
+		}
+	})
+
+	t.Run("explicit nil provider falls back to otel.GetTracerProvider", func(t *testing.T) {
+		globalSpy := &spyTracerProvider{}
+		prev := otel.GetTracerProvider()
+		otel.SetTracerProvider(globalSpy)
+		t.Cleanup(func() {
+			otel.SetTracerProvider(prev)
+		})
+		initialCalls := globalSpy.callCount
+
+		opts := []TracingOption{
+			WithTracerProvider(nil),
+			WithTracingAttributes(map[string]string{
+				ClientArtifact: "test-nil-provider-fallback",
+			}),
+		}
+		ct := NewClientTracing(opts...)
+		if ct == nil {
+			t.Fatalf("expected non-nil ClientTracing")
+		}
+		if globalSpy.callCount != initialCalls {
+			t.Fatalf("expected 0 new calls before accessing tracer, got %d", globalSpy.callCount-initialCalls)
+		}
+		if ct.tracer() == nil {
+			t.Errorf("expected non-nil tracer")
+		}
+		if globalSpy.callCount-initialCalls != 1 {
+			t.Errorf("expected global provider to be invoked 1 time, got %d", globalSpy.callCount-initialCalls)
+		}
+		if globalSpy.tracerName != "test-nil-provider-fallback" {
+			t.Errorf("expected tracer name %q, got %q", "test-nil-provider-fallback", globalSpy.tracerName)
+		}
+	})
+}
+
+type spyTracerProvider struct {
+	tracenoop.TracerProvider
+	mu            sync.Mutex
+	callCount     int
+	tracerName    string
+	tracerOptions []trace.TracerOption
+}
+
+func (s *spyTracerProvider) Tracer(name string, options ...trace.TracerOption) trace.Tracer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.callCount++
+	s.tracerName = name
+	s.tracerOptions = options
+	return s.TracerProvider.Tracer(name, options...)
+}
+
+func TestNewClientTracing_LazyInitialization(t *testing.T) {
+	spy := &spyTracerProvider{}
+	ct := NewClientTracing(
+		WithTracerProvider(spy),
+		WithTracingAttributes(map[string]string{
+			ClientArtifact: "my-artifact",
+			ClientVersion:  "1.2.3",
+		}),
+	)
+	if ct == nil {
+		t.Fatalf("expected non-nil ClientTracing")
+	}
+
+	// Verify Tracer() has NOT been called yet (lazy initialization via sync.OnceValue)
+	if spy.callCount != 0 {
+		t.Fatalf("expected 0 calls to Tracer() before accessing tracer, got %d", spy.callCount)
+	}
+
+	// Trigger lazy initialization
+	tr := ct.tracer()
+	if tr == nil {
+		t.Fatalf("expected non-nil tracer")
+	}
+	if spy.callCount != 1 {
+		t.Fatalf("expected exactly 1 call to Tracer(), got %d", spy.callCount)
+	}
+	if spy.tracerName != "my-artifact" {
+		t.Errorf("expected tracer name %q, got %q", "my-artifact", spy.tracerName)
+	}
+
+	// Verify Tracer options (InstrumentationVersion and SchemaURL)
+	cfg := trace.NewTracerConfig(spy.tracerOptions...)
+	if cfg.InstrumentationVersion() != "1.2.3" {
+		t.Errorf("expected instrumentation version %q, got %q", "1.2.3", cfg.InstrumentationVersion())
+	}
+	if cfg.SchemaURL() != schemaURL {
+		t.Errorf("expected schema URL %q, got %q", schemaURL, cfg.SchemaURL())
+	}
+
+	// Subsequent calls must return cached value without calling Tracer() again
+	_ = ct.tracer()
+	_ = ct.attributes()
+	if spy.callCount != 1 {
+		t.Fatalf("expected callCount to remain 1 after repeated access, got %d", spy.callCount)
+	}
+}
+
+func TestNewClientTracing_Concurrent(t *testing.T) {
+	spy := &spyTracerProvider{}
+	ct := NewClientTracing(
+		WithTracerProvider(spy),
+		WithTracingAttributes(map[string]string{
+			ClientArtifact: "my-concurrent-artifact",
+			ClientVersion:  "1.2.3",
+			ClientService:  "myservice",
+			RPCSystem:      "grpc",
+			URLDomain:      "test.domain",
+		}),
+	)
+
+	var wg sync.WaitGroup
+	const goroutines = 20
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tr := ct.tracer()
+			if tr == nil {
+				t.Errorf("expected non-nil tracer")
+			}
+			attrs := ct.attributes()
+			if len(attrs) != 3 {
+				t.Errorf("expected 3 attributes, got %d", len(attrs))
+			}
+		}()
+	}
+	wg.Wait()
+
+	if spy.callCount != 1 {
+		t.Fatalf("expected exactly 1 call to Tracer() across concurrent goroutines, got %d", spy.callCount)
+	}
+}
+
+func TestClientTracing_NilReceiver(t *testing.T) {
+	var ct *ClientTracing
+	if ct.tracer() != nil {
+		t.Errorf("expected nil tracer for nil receiver")
+	}
+	if ct.attributes() != nil {
+		t.Errorf("expected nil attributes for nil receiver")
+	}
+
+	ct = &ClientTracing{} // nil .get func
+	if ct.tracer() != nil {
+		t.Errorf("expected nil tracer for uninitialized ClientTracing")
+	}
+	if ct.attributes() != nil {
+		t.Errorf("expected nil attributes for uninitialized ClientTracing")
+	}
+}
+
+
