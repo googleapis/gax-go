@@ -812,3 +812,61 @@ func TestClientTracing_ConcurrentAndNil(t *testing.T) {
 		}
 	})
 }
+
+func TestSanitizeURLTemplate(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "path template without query or fragment",
+			input: "v1/projects/{project}/databases/{database}/documents",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "path template with query parameters",
+			input: "v1/projects/{project}/databases/{database}/documents?alt=json&key=secret",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "path template with URL fragment",
+			input: "v1/projects/{project}/databases/{database}/documents#section-1",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "path template with both query parameters and fragment",
+			input: "v1/projects/{project}/databases/{database}/documents?alt=json#section-1",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "fragment before query character",
+			input: "v1/resource#fragment?not-query",
+			want:  "v1/resource",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "only query parameter",
+			input: "?alt=json",
+			want:  "",
+		},
+		{
+			name:  "only fragment",
+			input: "#frag",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeURLTemplate(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeURLTemplate(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

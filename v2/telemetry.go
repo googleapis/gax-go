@@ -35,6 +35,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -595,4 +596,13 @@ func (ct *ClientTracing) attributes() []attribute.KeyValue {
 		return nil
 	}
 	return ct.get().attr
+}
+
+// sanitizeURLTemplate removes query parameters and URL fragments from a raw URL template,
+// ensuring only the path template is retained.
+func sanitizeURLTemplate(rawURL string) string {
+	if idx := strings.IndexAny(rawURL, "?#"); idx != -1 {
+		return rawURL[:idx]
+	}
+	return rawURL
 }
