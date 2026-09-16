@@ -564,14 +564,14 @@ func NewClientTracing(opts ...TracingOption) *ClientTracing {
 			tracer := provider.Tracer(config.attributes[ClientArtifact], tracerOpts...)
 
 			var attr []attribute.KeyValue
-			if val, ok := config.attributes[URLDomain]; ok {
-				attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyURLDomain), Value: attribute.StringValue(val)})
-			}
-			if val, ok := config.attributes[RPCSystem]; ok {
-				attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyRPCSystemName), Value: attribute.StringValue(val)})
-			}
-			if val, ok := config.attributes[ClientService]; ok {
-				attr = append(attr, attribute.KeyValue{Key: attribute.Key(keyGCPClientService), Value: attribute.StringValue(val)})
+			for _, m := range [...]struct{ attrKey, otelKey string }{
+				{URLDomain, keyURLDomain},
+				{RPCSystem, keyRPCSystemName},
+				{ClientService, keyGCPClientService},
+			} {
+				if val, ok := config.attributes[m.attrKey]; ok {
+					attr = append(attr, attribute.String(m.otelKey, val))
+				}
 			}
 			attr = attr[:len(attr):len(attr)]
 
