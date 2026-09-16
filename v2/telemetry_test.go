@@ -870,3 +870,77 @@ func TestSanitizeURLTemplate(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveSpanName(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctxSetup func(context.Context) context.Context
+		want     string
+	}{
+		{
+			name: "REST HTTP method and URL template",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "GET")
+				return callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/databases/{database}")
+			},
+			want: "GET v1/projects/{project}/databases/{database}",
+		},
+		{
+			name: "REST HTTP method and URL template with query params sanitized",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "POST")
+				return callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/locations?alt=json")
+			},
+			want: "POST v1/projects/{project}/locations",
+		},
+		{
+			name: "REST takes precedence over gRPC method per SemConv",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "DELETE")
+				ctx = callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/instances/{instance}")
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.spanner.admin.instance.v1.InstanceAdmin/DeleteInstance")
+			},
+			want: "DELETE v1/projects/{project}/instances/{instance}",
+		},
+		{
+			name: "HTTP method present but missing URL template falls back to gRPC",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "POST")
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
+			},
+			want: "google.pubsub.v1.Publisher/Publish",
+		},
+		{
+			name: "URL template present but missing HTTP method falls back to gRPC",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/topics")
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
+			},
+			want: "google.pubsub.v1.Publisher/Publish",
+		},
+		{
+			name: "gRPC method present without HTTP context",
+			ctxSetup: func(ctx context.Context) context.Context {
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
+			},
+			want: "google.pubsub.v1.Publisher/Publish",
+		},
+		{
+			name: "empty context falls back to default span name",
+			ctxSetup: func(ctx context.Context) context.Context {
+				return ctx
+			},
+			want: "gcp.client.request",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := tt.ctxSetup(context.Background())
+			got := resolveSpanName(ctx)
+			if got != tt.want {
+				t.Errorf("resolveSpanName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
