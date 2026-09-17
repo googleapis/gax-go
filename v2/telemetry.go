@@ -35,6 +35,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -595,4 +596,27 @@ func (ct *ClientTracing) attributes() []attribute.KeyValue {
 		return nil
 	}
 	return ct.get().attr
+}
+
+func resolveSpanName(ctx context.Context) string {
+	httpMethod, okHTTP := callctx.TelemetryFromContext(ctx, "http_method")
+	urlTemplate, okURL := callctx.TelemetryFromContext(ctx, "url_template")
+	if okHTTP && httpMethod != "" && okURL && urlTemplate != "" {
+		if sanitized := sanitizeURLTemplate(urlTemplate); sanitized != "" {
+			return httpMethod + " " + sanitized
+		}
+	}
+	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
+		return rpcMethod
+	}
+	return "gcp.client.request"
+}
+
+// sanitizeURLTemplate removes query parameters and URL fragments from a raw URL template,
+// ensuring only the path template is retained.
+func sanitizeURLTemplate(rawURL string) string {
+	if idx := strings.IndexAny(rawURL, "?#"); idx != -1 {
+		return rawURL[:idx]
+	}
+	return rawURL
 }

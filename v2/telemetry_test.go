@@ -812,3 +812,135 @@ func TestClientTracing_ConcurrentAndNil(t *testing.T) {
 		}
 	})
 }
+
+func TestSanitizeURLTemplate(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "path template without query or fragment",
+			input: "v1/projects/{project}/databases/{database}/documents",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "path template with query parameters",
+			input: "v1/projects/{project}/databases/{database}/documents?alt=json&key=secret",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "path template with URL fragment",
+			input: "v1/projects/{project}/databases/{database}/documents#section-1",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "path template with both query parameters and fragment",
+			input: "v1/projects/{project}/databases/{database}/documents?alt=json#section-1",
+			want:  "v1/projects/{project}/databases/{database}/documents",
+		},
+		{
+			name:  "fragment before query character",
+			input: "v1/resource#fragment?not-query",
+			want:  "v1/resource",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "only query parameter",
+			input: "?alt=json",
+			want:  "",
+		},
+		{
+			name:  "only fragment",
+			input: "#frag",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeURLTemplate(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeURLTemplate(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveSpanName(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctxSetup func(context.Context) context.Context
+		want     string
+	}{
+		{
+			name: "REST HTTP method and URL template",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "GET")
+				return callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/databases/{database}")
+			},
+			want: "GET v1/projects/{project}/databases/{database}",
+		},
+		{
+			name: "REST HTTP method and URL template with query params sanitized",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "POST")
+				return callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/locations?alt=json")
+			},
+			want: "POST v1/projects/{project}/locations",
+		},
+		{
+			name: "REST takes precedence over gRPC method per SemConv",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "DELETE")
+				ctx = callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/instances/{instance}")
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.spanner.admin.instance.v1.InstanceAdmin/DeleteInstance")
+			},
+			want: "DELETE v1/projects/{project}/instances/{instance}",
+		},
+		{
+			name: "HTTP method present but missing URL template falls back to gRPC",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "http_method", "POST")
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
+			},
+			want: "google.pubsub.v1.Publisher/Publish",
+		},
+		{
+			name: "URL template present but missing HTTP method falls back to gRPC",
+			ctxSetup: func(ctx context.Context) context.Context {
+				ctx = callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/topics")
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
+			},
+			want: "google.pubsub.v1.Publisher/Publish",
+		},
+		{
+			name: "gRPC method present without HTTP context",
+			ctxSetup: func(ctx context.Context) context.Context {
+				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
+			},
+			want: "google.pubsub.v1.Publisher/Publish",
+		},
+		{
+			name: "empty context falls back to default span name",
+			ctxSetup: func(ctx context.Context) context.Context {
+				return ctx
+			},
+			want: "gcp.client.request",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := tt.ctxSetup(context.Background())
+			got := resolveSpanName(ctx)
+			if got != tt.want {
+				t.Errorf("resolveSpanName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
