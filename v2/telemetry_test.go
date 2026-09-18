@@ -1092,3 +1092,125 @@ func TestEndSpan_NilSpan(t *testing.T) {
 	errInfo := ExtractTelemetryErrorInfo(context.Background(), nil)
 	endSpan(context.Background(), nil, &errInfo, nil)
 }
+
+func TestStartSpan(t *testing.T) {
+	t.Run("nil ClientTracing", func(t *testing.T) {
+		ctx := context.Background()
+		gotCtx, span := startSpan(ctx, nil)
+		if span != nil {
+			t.Errorf("expected nil span, got %v", span)
+		}
+		if gotCtx != ctx {
+			t.Errorf("expected original context, got %v", gotCtx)
+		}
+	})
+
+	t.Run("uninitialized ClientTracing", func(t *testing.T) {
+		ctx := context.Background()
+		gotCtx, span := startSpan(ctx, &ClientTracing{})
+		if span != nil {
+			t.Errorf("expected nil span, got %v", span)
+		}
+		if gotCtx != ctx {
+			t.Errorf("expected original context, got %v", gotCtx)
+		}
+	})
+
+	t.Run("gRPC with resource_name", func(t *testing.T) {
+		exporter := tracetest.NewInMemoryExporter()
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+		ct := NewClientTracing(
+			WithTracerProvider(tp),
+			WithTracingAttributes(map[string]string{
+				ClientService:  "speech",
+				ClientArtifact: "cloud.google.com/go/speech",
+				RPCSystem:      "grpc",
+				URLDomain:      "speech.googleapis.com",
+			}),
+		)
+
+		ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "google.cloud.speech.v1.Speech/Recognize")
+		ctx = callctx.WithTelemetryContext(ctx, "resource_name", "projects/p/locations/global")
+
+		gotCtx, span := startSpan(ctx, ct)
+		if span == nil {
+			t.Fatal("expected non-nil span")
+		}
+		if trace.SpanFromContext(gotCtx) != span {
+			t.Error("expected span injected into returned context")
+		}
+		span.End()
+
+		spans := exporter.GetSpans()
+		if len(spans) != 1 {
+			t.Fatalf("len(spans) = %d, want 1", len(spans))
+		}
+		s := spans[0]
+		if s.Name != "google.cloud.speech.v1.Speech/Recognize" {
+			t.Errorf("span.Name = %q, want google.cloud.speech.v1.Speech/Recognize", s.Name)
+		}
+		if s.SpanKind != trace.SpanKindClient {
+			t.Errorf("span.SpanKind = %v, want %v", s.SpanKind, trace.SpanKindClient)
+		}
+
+		gotAttrs := make(map[string]string)
+		for _, a := range s.Attributes {
+			gotAttrs[string(a.Key)] = a.Value.AsString()
+		}
+		wantAttrs := map[string]string{
+			"url.domain":                  "speech.googleapis.com",
+			"rpc.system.name":             "grpc",
+			"gcp.client.service":          "speech",
+			"gcp.resource.destination.id": "projects/p/locations/global",
+		}
+		if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {
+			t.Errorf("Attributes mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("REST with sanitized url_template", func(t *testing.T) {
+		exporter := tracetest.NewInMemoryExporter()
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+		ct := NewClientTracing(
+			WithTracerProvider(tp),
+			WithTracingAttributes(map[string]string{
+				ClientService:  "storage",
+				ClientArtifact: "cloud.google.com/go/storage",
+				RPCSystem:      "http",
+				URLDomain:      "storage.googleapis.com",
+			}),
+		)
+
+		ctx := callctx.WithTelemetryContext(context.Background(), "http_method", "GET")
+		ctx = callctx.WithTelemetryContext(ctx, "url_template", "/b/{bucket}/o?key=secret#frag")
+
+		_, span := startSpan(ctx, ct)
+		if span == nil {
+			t.Fatal("expected non-nil span")
+		}
+		span.End()
+
+		spans := exporter.GetSpans()
+		if len(spans) != 1 {
+			t.Fatalf("len(spans) = %d, want 1", len(spans))
+		}
+		s := spans[0]
+		if s.Name != "GET /b/{bucket}/o" {
+			t.Errorf("span.Name = %q, want GET /b/{bucket}/o", s.Name)
+		}
+
+		gotAttrs := make(map[string]string)
+		for _, a := range s.Attributes {
+			gotAttrs[string(a.Key)] = a.Value.AsString()
+		}
+		wantAttrs := map[string]string{
+			"url.domain":         "storage.googleapis.com",
+			"rpc.system.name":    "http",
+			"gcp.client.service": "storage",
+			"url.template":       "/b/{bucket}/o",
+		}
+		if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {
+			t.Errorf("Attributes mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
