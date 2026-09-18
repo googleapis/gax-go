@@ -45,10 +45,14 @@ import (
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/googleapis/gax-go/v2/callctx"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/api/googleapi"
@@ -943,4 +947,148 @@ func TestResolveSpanName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEndSpan(t *testing.T) {
+	stWithDetails, _ := status.New(codes.PermissionDenied, "disabled").WithDetails(&errdetails.ErrorInfo{
+		Reason: "SERVICE_DISABLED", Domain: "googleapis.com", Metadata: map[string]string{
+			"service": "speech.googleapis.com",
+			"foo":     "bar",
+		},
+	})
+	apiErr, _ := apierror.FromError(stWithDetails.Err())
+
+	tests := []struct {
+		name       string
+		setupCtx   func() context.Context
+		err        error
+		wantStatus otelcodes.Code
+		wantAttrs  map[string]any
+	}{
+		{
+			name: "success without transport telemetry",
+			setupCtx: func() context.Context {
+				return context.Background()
+			},
+			err:        nil,
+			wantStatus: otelcodes.Ok,
+			wantAttrs: map[string]any{
+				"rpc.response.status_code": "OK",
+			},
+		},
+		{
+			name: "success with transport telemetry ignored by T3 span",
+			setupCtx: func() context.Context {
+				td := &TransportTelemetryData{}
+				td.SetServerAddress("speech.googleapis.com")
+				td.SetServerPort(443)
+				td.SetHTTPStatusCode(200)
+				return InjectTransportTelemetry(context.Background(), td)
+			},
+			err:        nil,
+			wantStatus: otelcodes.Ok,
+			wantAttrs: map[string]any{
+				"rpc.response.status_code": "OK",
+			},
+		},
+		{
+			name: "terminal gRPC failure",
+			setupCtx: func() context.Context {
+				return context.Background()
+			},
+			err:        status.Error(codes.PermissionDenied, "permission denied"),
+			wantStatus: otelcodes.Error,
+			wantAttrs: map[string]any{
+				"error.type":               "PERMISSION_DENIED",
+				"rpc.response.status_code": "PERMISSION_DENIED",
+			},
+		},
+		{
+			name: "context deadline exceeded error",
+			setupCtx: func() context.Context {
+				ctx, cancel := context.WithTimeout(context.Background(), 0)
+				cancel()
+				return ctx
+			},
+			err:        context.DeadlineExceeded,
+			wantStatus: otelcodes.Error,
+			wantAttrs: map[string]any{
+				"error.type":               "CLIENT_TIMEOUT",
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+			},
+		},
+		{
+			name: "context canceled error",
+			setupCtx: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+			err:        context.Canceled,
+			wantStatus: otelcodes.Error,
+			wantAttrs: map[string]any{
+				"error.type":               "CLIENT_CANCELLED",
+				"rpc.response.status_code": "CANCELED",
+			},
+		},
+		{
+			name: "APIError unpacking details and metadata",
+			setupCtx: func() context.Context {
+				return context.Background()
+			},
+			err:        apiErr,
+			wantStatus: otelcodes.Error,
+			wantAttrs: map[string]any{
+				"error.type":                  "SERVICE_DISABLED",
+				"rpc.response.status_code":    "PERMISSION_DENIED",
+				"gcp.errors.domain":           "googleapis.com",
+				"gcp.errors.metadata.foo":     "bar",
+				"gcp.errors.metadata.service": "speech.googleapis.com",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exporter := tracetest.NewInMemoryExporter()
+			tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+			tracer := tp.Tracer("test")
+
+			ctx := tt.setupCtx()
+			ctx, span := tracer.Start(ctx, "test-span")
+
+			errInfo := ExtractTelemetryErrorInfo(ctx, tt.err)
+			endSpan(ctx, span, &errInfo, tt.err)
+
+			spans := exporter.GetSpans()
+			if len(spans) != 1 {
+				t.Fatalf("len(spans) = %d, want 1", len(spans))
+			}
+			s := spans[0]
+			if s.Status.Code != tt.wantStatus {
+				t.Errorf("span.Status.Code = %v, want %v", s.Status.Code, tt.wantStatus)
+			}
+			if tt.wantStatus == otelcodes.Ok && s.Status.Description != "" {
+				t.Errorf("span.Status.Description = %q, want empty for Ok status", s.Status.Description)
+			}
+
+			gotAttrs := make(map[string]any, len(s.Attributes))
+			for _, a := range s.Attributes {
+				switch a.Value.Type() {
+				case attribute.STRING:
+					gotAttrs[string(a.Key)] = a.Value.AsString()
+				case attribute.INT64:
+					gotAttrs[string(a.Key)] = int(a.Value.AsInt64())
+				}
+			}
+			if diff := cmp.Diff(tt.wantAttrs, gotAttrs); diff != "" {
+				t.Errorf("Attributes mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestEndSpan_NilSpan(t *testing.T) {
+	errInfo := ExtractTelemetryErrorInfo(context.Background(), nil)
+	endSpan(context.Background(), nil, &errInfo, nil)
 }

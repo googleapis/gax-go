@@ -43,6 +43,7 @@ import (
 	"github.com/googleapis/gax-go/v2/callctx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -453,6 +454,12 @@ func ExtractTelemetryErrorInfo(ctx context.Context, err error) TelemetryErrorInf
 
 // recordMetric records a duration measurement for the configured metric.
 func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, err error) {
+	errInfo := ExtractTelemetryErrorInfo(ctx, err)
+	recordMetricWithInfo(ctx, settings, d, &errInfo)
+}
+
+// recordMetricWithInfo records a duration measurement using pre-extracted error info.
+func recordMetricWithInfo(ctx context.Context, settings CallSettings, d time.Duration, errInfo *TelemetryErrorInfo) {
 	if settings.clientMetrics == nil || settings.clientMetrics.durationHistogram() == nil {
 		return
 	}
@@ -464,8 +471,6 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 	// Pre-allocate to avoid repeated appends (5 is the max number of dynamic attributes added here)
 	attrs := make([]attribute.KeyValue, 0, len(settings.clientMetrics.attributes())+5)
 	attrs = append(attrs, settings.clientMetrics.attributes()...)
-
-	errInfo := ExtractTelemetryErrorInfo(ctx, err)
 
 	if td := ExtractTransportTelemetry(ctx); td != nil {
 		if td.ServerAddress() != "" {
@@ -493,6 +498,43 @@ func recordMetric(ctx context.Context, settings CallSettings, d time.Duration, e
 	}
 
 	settings.clientMetrics.durationHistogram().Record(recordCtx, d.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// endSpan records terminal status, diagnostic error details, and ends the client span.
+func endSpan(ctx context.Context, span trace.Span, errInfo *TelemetryErrorInfo, err error) {
+	if span == nil {
+		return
+	}
+	defer span.End()
+
+	if errInfo == nil {
+		info := ExtractTelemetryErrorInfo(ctx, err)
+		errInfo = &info
+	}
+
+	attrs := make([]attribute.KeyValue, 0, 3+len(errInfo.Metadata))
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, errInfo.StatusCode)
+		attrs = append(attrs,
+			attribute.String("error.type", errInfo.ErrorType),
+			attribute.String("rpc.response.status_code", errInfo.StatusCode),
+		)
+		if errInfo.Domain != "" {
+			attrs = append(attrs, attribute.String("gcp.errors.domain", errInfo.Domain))
+		}
+		for k, v := range errInfo.Metadata {
+			attrs = append(attrs, attribute.String("gcp.errors.metadata."+k, v))
+		}
+	} else {
+		span.SetStatus(otelcodes.Ok, "")
+		attrs = append(attrs, attribute.String("rpc.response.status_code", "OK"))
+	}
+
+	if len(attrs) > 0 {
+		span.SetAttributes(attrs...)
+	}
 }
 
 // ClientTracing contains the pre-allocated OpenTelemetry tracer and attributes
