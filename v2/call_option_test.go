@@ -168,3 +168,20 @@ func TestWithClientTracing(t *testing.T) {
 		t.Errorf("got %p, want nil", settings.clientTracing)
 	}
 }
+
+func TestWithClientLogging(t *testing.T) {
+	settings := CallSettings{}
+	cl := &ClientLogging{}
+
+	WithClientLogging(cl).Resolve(&settings)
+
+	if settings.clientLogging != cl {
+		t.Errorf("got %p, want %p", settings.clientLogging, cl)
+	}
+
+	// Verify WithClientLogging(nil) clears the setting
+	WithClientLogging(nil).Resolve(&settings)
+	if settings.clientLogging != nil {
+		t.Errorf("got %p, want nil", settings.clientLogging)
+	}
+}
