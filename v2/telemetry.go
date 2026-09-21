@@ -500,6 +500,35 @@ func recordMetricWithInfo(ctx context.Context, settings CallSettings, d time.Dur
 	settings.clientMetrics.durationHistogram().Record(recordCtx, d.Seconds(), metric.WithAttributes(attrs...))
 }
 
+// startSpan starts a client request span if ClientTracing and its tracer are configured.
+func startSpan(ctx context.Context, ct *ClientTracing) (context.Context, trace.Span) {
+	if ct == nil {
+		return ctx, nil
+	}
+	tracer := ct.tracer()
+	if tracer == nil {
+		return ctx, nil
+	}
+	spanName := resolveSpanName(ctx)
+	staticAttrs := ct.attributes()
+	attrs := make([]attribute.KeyValue, 0, len(staticAttrs)+2)
+	attrs = append(attrs, staticAttrs...)
+	if urlTemplate, ok := callctx.TelemetryFromContext(ctx, "url_template"); ok && urlTemplate != "" {
+		if sanitized := sanitizeURLTemplate(urlTemplate); sanitized != "" {
+			attrs = append(attrs, attribute.String("url.template", sanitized))
+		}
+	}
+	if resName, ok := callctx.TelemetryFromContext(ctx, "resource_name"); ok && resName != "" {
+		attrs = append(attrs, attribute.String("gcp.resource.destination.id", resName))
+	}
+	return tracer.Start(
+		ctx,
+		spanName,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attrs...),
+	)
+}
+
 // endSpan records terminal status, diagnostic error details, and ends the client span.
 func endSpan(ctx context.Context, span trace.Span, errInfo *TelemetryErrorInfo, err error) {
 	if span == nil {
