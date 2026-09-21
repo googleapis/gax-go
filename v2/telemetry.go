@@ -815,3 +815,61 @@ func (cl *ClientLogging) attributes() []slog.Attr {
 	}
 	return cl.get().attr
 }
+
+// recordActionableLog emits a structured warning log strictly upon terminal failure.
+func recordActionableLog(ctx context.Context, cl *ClientLogging, errInfo *TelemetryErrorInfo, retries int, err error) {
+	if cl == nil || err == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	logger := cl.logger()
+	if logger == nil || !logger.Enabled(ctx, slog.LevelWarn) {
+		return
+	}
+
+	if errInfo == nil {
+		info := ExtractTelemetryErrorInfo(ctx, err)
+		errInfo = &info
+	}
+
+	staticAttrs := cl.attributes()
+	attrs := make([]slog.Attr, 0, len(staticAttrs)+9+len(errInfo.Metadata))
+	attrs = append(attrs, staticAttrs...)
+
+	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
+		attrs = append(attrs, slog.String("rpc.method", rpcMethod))
+	}
+	if urlTemplate, ok := callctx.TelemetryFromContext(ctx, "url_template"); ok && urlTemplate != "" {
+		if sanitized := sanitizeURLTemplate(urlTemplate); sanitized != "" {
+			attrs = append(attrs, slog.String("url.template", sanitized))
+		}
+	}
+	if td := ExtractTransportTelemetry(ctx); td != nil {
+		if td.ServerAddress() != "" {
+			attrs = append(attrs, slog.String("server.address", td.ServerAddress()))
+		}
+		if td.ServerPort() != 0 {
+			attrs = append(attrs, slog.Int("server.port", td.ServerPort()))
+		}
+	}
+	if errInfo.ErrorType != "" {
+		attrs = append(attrs, slog.String("error.type", errInfo.ErrorType))
+	}
+	if errInfo.StatusCode != "" {
+		attrs = append(attrs, slog.String("rpc.response.status_code", errInfo.StatusCode))
+	}
+	attrs = append(attrs,
+		slog.String("error.message", err.Error()),
+		slog.Int("resend_count", retries),
+	)
+	if errInfo.Domain != "" {
+		attrs = append(attrs, slog.String("gcp.errors.domain", errInfo.Domain))
+	}
+	for k, v := range errInfo.Metadata {
+		attrs = append(attrs, slog.String("gcp.errors.metadata."+k, v))
+	}
+
+	logger.LogAttrs(ctx, slog.LevelWarn, "gcp.client.request", attrs...)
+}

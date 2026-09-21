@@ -1355,3 +1355,204 @@ func TestClientLogging_ConcurrentAndNil(t *testing.T) {
 		}
 	})
 }
+
+type inMemoryLogHandler struct {
+	mu            sync.Mutex
+	records       []slog.Record
+	validTraceCtx []bool
+}
+
+func (h *inMemoryLogHandler) Enabled(_ context.Context, _ slog.Level) bool { return true }
+
+func (h *inMemoryLogHandler) Handle(ctx context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, r.Clone())
+	span := trace.SpanFromContext(ctx)
+	h.validTraceCtx = append(h.validTraceCtx, span != nil && span.SpanContext().IsValid())
+	return nil
+}
+
+func (h *inMemoryLogHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *inMemoryLogHandler) WithGroup(_ string) slog.Handler      { return h }
+
+func (h *inMemoryLogHandler) getRecords() []slog.Record {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	cp := make([]slog.Record, len(h.records))
+	copy(cp, h.records)
+	return cp
+}
+
+func (h *inMemoryLogHandler) getTraceContextValidity() []bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	cp := make([]bool, len(h.validTraceCtx))
+	copy(cp, h.validTraceCtx)
+	return cp
+}
+
+type levelFilteringHandler struct {
+	minLevel slog.Level
+	records  []slog.Record
+}
+
+func (h *levelFilteringHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= h.minLevel
+}
+
+func (h *levelFilteringHandler) Handle(_ context.Context, r slog.Record) error {
+	h.records = append(h.records, r.Clone())
+	return nil
+}
+
+func (h *levelFilteringHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *levelFilteringHandler) WithGroup(_ string) slog.Handler      { return h }
+
+func TestRecordActionableLog(t *testing.T) {
+	t.Run("nil error emits zero logs", func(t *testing.T) {
+		handler := &inMemoryLogHandler{}
+		logger := slog.New(handler)
+		cl := NewClientLogging(WithLoggerProvider(logger))
+		recordActionableLog(context.Background(), cl, nil, 0, nil)
+		if len(handler.getRecords()) != 0 {
+			t.Fatalf("expected 0 records for nil err")
+		}
+	})
+
+	t.Run("nil client or context safety", func(t *testing.T) {
+		err := errors.New("terminal failure")
+		recordActionableLog(context.Background(), nil, nil, 0, err)
+		recordActionableLog(context.Background(), &ClientLogging{}, nil, 0, err)
+
+		handler := &inMemoryLogHandler{}
+		logger := slog.New(handler)
+		cl := NewClientLogging(WithLoggerProvider(logger))
+		recordActionableLog(nil, cl, nil, 0, err)
+		if len(handler.getRecords()) != 1 {
+			t.Fatalf("expected 1 record with nil context")
+		}
+	})
+
+	t.Run("level disabled", func(t *testing.T) {
+		handler := &levelFilteringHandler{minLevel: slog.LevelError}
+		logger := slog.New(handler)
+		cl := NewClientLogging(WithLoggerProvider(logger))
+		recordActionableLog(context.Background(), cl, nil, 0, errors.New("terminal failure"))
+		if len(handler.records) != 0 {
+			t.Fatalf("expected 0 records when LevelWarn is disabled")
+		}
+	})
+
+	t.Run("metadata attributes", func(t *testing.T) {
+		handler := &inMemoryLogHandler{}
+		logger := slog.New(handler)
+		cl := NewClientLogging(WithLoggerProvider(logger))
+		errInfo := &TelemetryErrorInfo{
+			Domain:     "googleapis.com",
+			ErrorType:  "RESOURCE_EXHAUSTED",
+			StatusCode: "RESOURCE_EXHAUSTED",
+			Metadata: map[string]string{
+				"zebra":  "last",
+				"alpha":  "first",
+				"middle": "between",
+			},
+		}
+		recordActionableLog(context.Background(), cl, errInfo, 0, errors.New("exhausted"))
+		records := handler.getRecords()
+		if len(records) != 1 {
+			t.Fatalf("expected 1 record")
+		}
+		var gotDomain string
+		gotMeta := make(map[string]string)
+		records[0].Attrs(func(a slog.Attr) bool {
+			if a.Key == "gcp.errors.domain" {
+				gotDomain = a.Value.String()
+			} else if strings.HasPrefix(a.Key, "gcp.errors.metadata.") {
+				gotMeta[a.Key] = a.Value.String()
+			}
+			return true
+		})
+		if gotDomain != "googleapis.com" {
+			t.Errorf("gcp.errors.domain = %q, want %q", gotDomain, "googleapis.com")
+		}
+		wantMeta := map[string]string{
+			"gcp.errors.metadata.alpha":  "first",
+			"gcp.errors.metadata.middle": "between",
+			"gcp.errors.metadata.zebra":  "last",
+		}
+		if diff := cmp.Diff(wantMeta, gotMeta); diff != "" {
+			t.Errorf("metadata attributes mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("attribute formatting", func(t *testing.T) {
+		handler := &inMemoryLogHandler{}
+		logger := slog.New(handler)
+		cl := NewClientLogging(
+			WithLoggerProvider(logger),
+			WithLoggingAttributes(map[string]string{
+				ClientRepo:    "googleapis/google-cloud-go",
+				ClientService: "speech",
+				ClientVersion: "1.2.3",
+				RPCSystem:     "grpc",
+				URLDomain:     "speech.googleapis.com",
+			}),
+		)
+
+		ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "google.cloud.speech.v1.Speech/Recognize")
+		ctx = callctx.WithTelemetryContext(ctx, "url_template", "/v1/speech:recognize?filter=active#section")
+		td := &TransportTelemetryData{}
+		td.SetServerAddress("speech.googleapis.com")
+		td.SetServerPort(443)
+		ctx = InjectTransportTelemetry(ctx, td)
+
+		err := status.Error(codes.PermissionDenied, "caller does not have permission")
+		errInfo := ExtractTelemetryErrorInfo(ctx, err)
+
+		recordActionableLog(ctx, cl, &errInfo, 2, err)
+
+		records := handler.getRecords()
+		if len(records) != 1 {
+			t.Fatalf("expected 1 record, got %d", len(records))
+		}
+		r := records[0]
+		if r.Level != slog.LevelWarn {
+			t.Errorf("r.Level = %v, want LevelWarn", r.Level)
+		}
+		if r.Message != "gcp.client.request" {
+			t.Errorf("r.Message = %q, want 'gcp.client.request'", r.Message)
+		}
+
+		attrs := make(map[string]any)
+		r.Attrs(func(a slog.Attr) bool {
+			attrs[a.Key] = a.Value.Any()
+			return true
+		})
+
+		wantAttrs := map[string]any{
+			"gcp.client.repo":          "googleapis/google-cloud-go",
+			"gcp.client.service":       "speech",
+			"gcp.client.version":       "1.2.3",
+			"rpc.system.name":          "grpc",
+			"url.domain":               "speech.googleapis.com",
+			"rpc.method":               "google.cloud.speech.v1.Speech/Recognize",
+			"url.template":             "/v1/speech:recognize",
+			"server.address":           "speech.googleapis.com",
+			"server.port":              int64(443),
+			"error.type":               "PERMISSION_DENIED",
+			"rpc.response.status_code": "PERMISSION_DENIED",
+			"error.message":            err.Error(),
+			"resend_count":             int64(2),
+		}
+
+		for k, want := range wantAttrs {
+			got, ok := attrs[k]
+			if !ok {
+				t.Errorf("missing attribute %q", k)
+			} else if got != want {
+				t.Errorf("attribute %q = %v (%T), want %v (%T)", k, got, got, want, want)
+			}
+		}
+	})
+}
