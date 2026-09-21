@@ -31,7 +31,9 @@ package gax
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -427,5 +429,254 @@ func TestInvokeWithTracing_Disabled(t *testing.T) {
 	}
 	if len(exporter.GetSpans()) != 0 {
 		t.Errorf("expected 0 spans when feature flag disabled, got %d", len(exporter.GetSpans()))
+	}
+}
+
+// failNTimesCall returns an APICall that fails n times with err before succeeding.
+func failNTimesCall(n int, err error) APICall {
+	attempts := 0
+	return func(ctx context.Context, settings CallSettings) error {
+		if attempts < n {
+			attempts++
+			return err
+		}
+		return nil
+	}
+}
+
+func TestInvokeWithLogging(t *testing.T) {
+	t.Setenv("GOOGLE_SDK_GO_LOGGING", "true")
+	TestOnlyResetIsFeatureEnabled()
+	defer TestOnlyResetIsFeatureEnabled()
+
+	tests := []struct {
+		name      string
+		setupCtx  func() (context.Context, context.CancelFunc)
+		callFunc  APICall
+		callOpts  []CallOption
+		wantCount int
+		wantAttrs map[string]any
+		wantErr   bool
+	}{
+		{
+			name: "success_grpc",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				return context.Background(), func() {}
+			},
+			callFunc: func(ctx context.Context, settings CallSettings) error {
+				return nil
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name: "success_after_retries",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				return context.Background(), func() {}
+			},
+			callOpts: []CallOption{
+				WithRetry(func() Retryer { return &testRetryer{} }),
+			},
+			callFunc:  failNTimesCall(1, status.Error(codes.Unavailable, "transient unavailable")),
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name: "terminal_failure_no_retries",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "my.service.Method")
+				ctx = callctx.WithTelemetryContext(ctx, "url_template", "/v1/projects/{project}")
+				return ctx, func() {}
+			},
+			callFunc: func(ctx context.Context, settings CallSettings) error {
+				return status.Error(codes.InvalidArgument, "invalid argument")
+			},
+			wantCount: 1,
+			wantAttrs: map[string]any{
+				"gcp.client.service":       "test-service",
+				"rpc.system.name":          "grpc",
+				"url.domain":               "test.domain",
+				"rpc.method":               "my.service.Method",
+				"url.template":             "/v1/projects/{project}",
+				"error.type":               "INVALID_ARGUMENT",
+				"rpc.response.status_code": "INVALID_ARGUMENT",
+				"error.message":            "rpc error: code = InvalidArgument desc = invalid argument",
+				"resend_count":             int64(0),
+			},
+			wantErr: true,
+		},
+		{
+			name: "terminal_failure_with_retries",
+			setupCtx: func() (context.Context, context.CancelFunc) {
+				ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "my.service.Method")
+				ctx = callctx.WithTelemetryContext(ctx, "url_template", "/v1/projects/{project}?key=val")
+				td := &TransportTelemetryData{}
+				td.SetServerAddress("my.service.internal")
+				td.SetServerPort(443)
+				return InjectTransportTelemetry(ctx, td), func() {}
+			},
+			callOpts: []CallOption{
+				WithRetry(func() Retryer { return &testRetryer{} }),
+			},
+			callFunc: func(ctx context.Context, settings CallSettings) error {
+				return status.Error(codes.DeadlineExceeded, "deadline exceeded")
+			},
+			wantCount: 1,
+			wantAttrs: map[string]any{
+				"gcp.client.service":       "test-service",
+				"rpc.system.name":          "grpc",
+				"url.domain":               "test.domain",
+				"rpc.method":               "my.service.Method",
+				"url.template":             "/v1/projects/{project}",
+				"server.address":           "my.service.internal",
+				"server.port":              int64(443),
+				"error.type":               "DEADLINE_EXCEEDED",
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+				"error.message":            "rpc error: code = DeadlineExceeded desc = deadline exceeded",
+				"resend_count":             int64(1),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := tt.setupCtx()
+			defer cancel()
+
+			handler := &inMemoryLogHandler{}
+			logger := slog.New(handler)
+			cl := NewClientLogging(
+				WithLoggerProvider(logger),
+				WithLoggingAttributes(map[string]string{
+					ClientService: "test-service",
+					URLDomain:     "test.domain",
+					RPCSystem:     "grpc",
+				}),
+			)
+
+			callOpts := []CallOption{WithClientLogging(cl)}
+			if tt.callOpts != nil {
+				callOpts = append(callOpts, tt.callOpts...)
+			}
+
+			err := Invoke(ctx, tt.callFunc, callOpts...)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Invoke() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			records := handler.getRecords()
+			if len(records) != tt.wantCount {
+				t.Fatalf("len(records) = %d, want %d", len(records), tt.wantCount)
+			}
+			if tt.wantCount == 0 {
+				return
+			}
+
+			r := records[0]
+			if r.Level != slog.LevelWarn {
+				t.Errorf("r.Level = %v, want LevelWarn", r.Level)
+			}
+			if r.Message != "gcp.client.request" {
+				t.Errorf("r.Message = %q, want 'gcp.client.request'", r.Message)
+			}
+
+			gotAttrs := make(map[string]any)
+			r.Attrs(func(a slog.Attr) bool {
+				gotAttrs[a.Key] = a.Value.Any()
+				return true
+			})
+			if diff := cmp.Diff(tt.wantAttrs, gotAttrs); diff != "" {
+				t.Errorf("attrs mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestInvokeWithLogging_Disabled(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		setEnv     bool
+		envVal     string
+		passClient bool
+	}{
+		{"unset_env", false, "", true},
+		{"explicit_false", true, "false", true},
+		{"nil_client", true, "true", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			TestOnlyResetIsFeatureEnabled()
+			defer TestOnlyResetIsFeatureEnabled()
+
+			if tc.setEnv {
+				t.Setenv("GOOGLE_SDK_GO_LOGGING", tc.envVal)
+			}
+
+			handler := &inMemoryLogHandler{}
+			logger := slog.New(handler)
+
+			var callOpts []CallOption
+			if tc.passClient {
+				cl := NewClientLogging(WithLoggerProvider(logger))
+				callOpts = append(callOpts, WithClientLogging(cl))
+			}
+
+			_ = Invoke(context.Background(), func(ctx context.Context, s CallSettings) error {
+				return errors.New("terminal failure")
+			}, callOpts...)
+
+			if len(handler.getRecords()) != 0 {
+				t.Errorf("expected 0 log records, got %d", len(handler.getRecords()))
+			}
+		})
+	}
+}
+
+func TestInvokeWithLogging_TraceContextCorrelation(t *testing.T) {
+	t.Setenv("GOOGLE_SDK_GO_TRACING", "true")
+	t.Setenv("GOOGLE_SDK_GO_LOGGING", "true")
+	TestOnlyResetIsFeatureEnabled()
+	defer TestOnlyResetIsFeatureEnabled()
+
+	handler := &inMemoryLogHandler{}
+	logger := slog.New(handler)
+	cl := NewClientLogging(WithLoggerProvider(logger))
+
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	ct := NewClientTracing(WithTracerProvider(tp))
+
+	_ = Invoke(context.Background(), func(ctx context.Context, s CallSettings) error {
+		return status.Error(codes.Internal, "crash")
+	}, WithClientTracing(ct), WithClientLogging(cl))
+
+	records := handler.getRecords()
+	if len(records) != 1 {
+		t.Fatalf("expected 1 log record, got %d", len(records))
+	}
+	validCtx := handler.getTraceContextValidity()
+	if len(validCtx) != 1 || !validCtx[0] {
+		t.Errorf("expected active trace context in context passed to logger")
+	}
+}
+
+func BenchmarkInvokeLoggingSuccess(b *testing.B) {
+	b.Setenv("GOOGLE_SDK_GO_LOGGING", "true")
+	TestOnlyResetIsFeatureEnabled()
+	defer TestOnlyResetIsFeatureEnabled()
+
+	handler := &inMemoryLogHandler{}
+	logger := slog.New(handler)
+	cl := NewClientLogging(WithLoggerProvider(logger))
+
+	apiCall := func(ctx context.Context, settings CallSettings) error { return nil }
+	opt := WithClientLogging(cl)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if err := Invoke(context.Background(), apiCall, opt); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
