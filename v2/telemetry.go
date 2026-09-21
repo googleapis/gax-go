@@ -834,9 +834,7 @@ func recordActionableLog(ctx context.Context, cl *ClientLogging, errInfo *Teleme
 		errInfo = &info
 	}
 
-	staticAttrs := cl.attributes()
-	attrs := make([]slog.Attr, 0, len(staticAttrs)+9+len(errInfo.Metadata))
-	attrs = append(attrs, staticAttrs...)
+	attrs := append([]slog.Attr(nil), cl.attributes()...)
 
 	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
 		attrs = append(attrs, slog.String("rpc.method", rpcMethod))
