@@ -33,6 +33,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"math"
 	"os/exec"
@@ -1211,6 +1212,146 @@ func TestStartSpan(t *testing.T) {
 		}
 		if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {
 			t.Errorf("Attributes mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
+func TestNewClientLogging(t *testing.T) {
+	customLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	for _, tt := range []struct {
+		name      string
+		opts      []LoggingOption
+		wantAttr  map[string]string
+		useCustom bool
+	}{
+		{
+			name: "static attributes with custom logger",
+			opts: []LoggingOption{
+				WithLoggingAttributes(map[string]string{
+					ClientArtifact: "cloud.google.com/go/secretmanager/apiv1",
+					ClientRepo:     "googleapis/google-cloud-go",
+					ClientService:  "secretmanager",
+					ClientVersion:  "1.21.0",
+					RPCSystem:      "grpc",
+					URLDomain:      "secretmanager.googleapis.com",
+					"ignored.key":  "ignored",
+				}),
+			},
+			useCustom: true,
+			wantAttr: map[string]string{
+				"gcp.client.artifact": "cloud.google.com/go/secretmanager/apiv1",
+				"gcp.client.repo":     "googleapis/google-cloud-go",
+				"gcp.client.service":  "secretmanager",
+				"gcp.client.version":  "1.21.0",
+				"rpc.system.name":     "grpc",
+				"url.domain":          "secretmanager.googleapis.com",
+			},
+		},
+		{
+			name: "nil entries and multiple options merge with override",
+			opts: []LoggingOption{
+				nil,
+				WithLoggingAttributes(map[string]string{ClientService: "service1", URLDomain: "first.domain"}),
+				WithLoggingAttributes(map[string]string{URLDomain: "second.domain"}),
+				nil,
+			},
+			wantAttr: map[string]string{
+				"gcp.client.service": "service1",
+				"url.domain":         "second.domain",
+			},
+		},
+		{
+			name:     "no options",
+			opts:     nil,
+			wantAttr: map[string]string{},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := tt.opts
+			if tt.useCustom {
+				opts = append(opts, WithLoggerProvider(customLogger))
+			}
+			cl := NewClientLogging(opts...)
+			if cl == nil || cl.logger() == nil {
+				t.Fatalf("expected non-nil ClientLogging and logger")
+			}
+			gotAttr := make(map[string]string)
+			for _, a := range cl.attributes() {
+				gotAttr[a.Key] = a.Value.String()
+			}
+			if diff := cmp.Diff(tt.wantAttr, gotAttr); diff != "" {
+				t.Errorf("Attributes mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestNewClientLogging_LifecycleAndFallback(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		opts []LoggingOption
+	}{
+		{
+			name: "unspecified logger delegates to slog.Default()",
+			opts: []LoggingOption{
+				WithLoggingAttributes(map[string]string{ClientService: "test"}),
+			},
+		},
+		{
+			name: "explicit nil logger falls back to slog.Default()",
+			opts: []LoggingOption{
+				WithLoggerProvider(nil),
+				WithLoggingAttributes(map[string]string{ClientService: "test"}),
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cl := NewClientLogging(tt.opts...)
+			if cl == nil {
+				t.Fatalf("expected non-nil ClientLogging")
+			}
+			if cl.logger() == nil {
+				t.Fatalf("expected non-nil default logger")
+			}
+		})
+	}
+}
+
+func TestClientLogging_ConcurrentAndNil(t *testing.T) {
+	t.Run("concurrent access", func(t *testing.T) {
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		cl := NewClientLogging(WithLoggerProvider(logger), WithLoggingAttributes(map[string]string{
+			ClientService: "secretmanager", ClientVersion: "1.0",
+		}))
+		var wg sync.WaitGroup
+		for i := 0; i < 20; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if cl.logger() == nil || len(cl.attributes()) != 2 {
+					t.Errorf("unexpected logger or attributes")
+				}
+			}()
+		}
+		wg.Wait()
+	})
+
+	t.Run("nil receiver safety", func(t *testing.T) {
+		var cl *ClientLogging
+		if cl.logger() != nil {
+			t.Errorf("expected nil logger for nil receiver")
+		}
+		if cl.attributes() != nil {
+			t.Errorf("expected nil attributes for nil receiver")
+		}
+
+		uninit := &ClientLogging{}
+		if uninit.logger() != nil {
+			t.Errorf("expected nil logger for uninitialized ClientLogging")
+		}
+		if uninit.attributes() != nil {
+			t.Errorf("expected nil attributes for uninitialized ClientLogging")
 		}
 	})
 }
