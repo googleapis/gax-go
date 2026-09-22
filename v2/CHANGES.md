@@ -1,10 +1,21 @@
 # Changes
 
+## [2.26.0](https://github.com/googleapis/gax-go/compare/v2.25.0...v2.26.0) (2026-09-22)
+
+
+### Features
+
+* **o11y:** add ClientLogging configuration ([#550](https://github.com/googleapis/gax-go/issues/550))
+* **o11y:** add WithClientLogging CallOption ([#551](https://github.com/googleapis/gax-go/issues/551))
+* **o11y:** add recordActionableLog helper for L3 error logs ([#552](https://github.com/googleapis/gax-go/issues/552))
+* **o11y:** implement actionable error logging in Invoke ([#553](https://github.com/googleapis/gax-go/issues/553))
+
 ## [2.25.0](https://github.com/googleapis/gax-go/compare/v2.24.1...v2.25.0) (2026-09-21)
 
 
 ### Features
 
+* **o11y:** implement OpenTelemetry client request tracing in Invoke ([#540](https://github.com/googleapis/gax-go/issues/540), [#541](https://github.com/googleapis/gax-go/issues/541), [#542](https://github.com/googleapis/gax-go/issues/542), [#543](https://github.com/googleapis/gax-go/issues/543), [#546](https://github.com/googleapis/gax-go/issues/546), [#547](https://github.com/googleapis/gax-go/issues/547))
 * update go min version to 1.26 ([#548](https://github.com/googleapis/gax-go/issues/548)) ([b943a7d](https://github.com/googleapis/gax-go/commit/b943a7d2b80b8c2acd519311084c92ec0a972b8b))
 
 ## [2.24.1](https://github.com/googleapis/gax-go/compare/v2.24.0...v2.24.1) (2026-09-03)
