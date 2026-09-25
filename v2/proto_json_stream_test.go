@@ -120,8 +120,9 @@ func TestRecv(t *testing.T) {
 		stream := NewProtoJSONStreamReader(s, tst.typ)
 		defer stream.Close()
 
+		var ndx int
 		got, err := stream.Recv()
-		for ndx := 0; err == nil; ndx++ {
+		for ndx = 0; err == nil; ndx++ {
 			if diff := cmp.Diff(got, tst.want[ndx], cmp.Comparer(proto.Equal)); diff != "" {
 				t.Errorf("%s: got(-),want(+):\n%s", tst.name, diff)
 			}
@@ -129,6 +130,9 @@ func TestRecv(t *testing.T) {
 		}
 		if !errors.Is(err, io.EOF) {
 			t.Errorf("%s: expected %v but got %v", tst.name, io.EOF, err)
+		}
+		if ndx != len(tst.want) {
+			t.Errorf("element count mismatch, want %d, got %d", len(tst.want), ndx)
 		}
 	}
 }
