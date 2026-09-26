@@ -266,7 +266,7 @@ func TestInvokeWithTracing(t *testing.T) {
 		{
 			name: "success_grpc",
 			setupCtx: func() (context.Context, context.CancelFunc) {
-				ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "my.service.Method")
+				ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "my.service/Method")
 				return ctx, func() {}
 			},
 			callFunc: func(ctx context.Context, settings CallSettings) error {
@@ -276,7 +276,7 @@ func TestInvokeWithTracing(t *testing.T) {
 				}
 				return nil
 			},
-			wantName:   "my.service.Method",
+			wantName:   "service.Method",
 			wantStatus: otelcodes.Ok,
 			wantDataAttr: map[string]string{
 				"url.domain":               "test.domain",

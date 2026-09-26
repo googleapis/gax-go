@@ -905,7 +905,7 @@ func TestResolveSpanName(t *testing.T) {
 				ctx = callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/instances/{instance}")
 				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.spanner.admin.instance.v1.InstanceAdmin/DeleteInstance")
 			},
-			want: "DELETE v1/projects/{project}/instances/{instance}",
+			want: "InstanceAdmin.DeleteInstance",
 		},
 		{
 			name: "HTTP method present but missing URL template falls back to gRPC",
@@ -913,7 +913,7 @@ func TestResolveSpanName(t *testing.T) {
 				ctx = callctx.WithTelemetryContext(ctx, "http_method", "POST")
 				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
 			},
-			want: "google.pubsub.v1.Publisher/Publish",
+			want: "Publisher.Publish",
 		},
 		{
 			name: "URL template present but missing HTTP method falls back to gRPC",
@@ -921,14 +921,14 @@ func TestResolveSpanName(t *testing.T) {
 				ctx = callctx.WithTelemetryContext(ctx, "url_template", "v1/projects/{project}/topics")
 				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
 			},
-			want: "google.pubsub.v1.Publisher/Publish",
+			want: "Publisher.Publish",
 		},
 		{
 			name: "gRPC method present without HTTP context",
 			ctxSetup: func(ctx context.Context) context.Context {
 				return callctx.WithTelemetryContext(ctx, "rpc_method", "google.pubsub.v1.Publisher/Publish")
 			},
-			want: "google.pubsub.v1.Publisher/Publish",
+			want: "Publisher.Publish",
 		},
 		{
 			name: "empty context falls back to default span name",
@@ -947,6 +947,65 @@ func TestResolveSpanName(t *testing.T) {
 				t.Errorf("resolveSpanName() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFormatServiceMethod(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{
+			input: "google.cloud.secretmanager.v1.SecretManagerService/GetSecret",
+			want:  "SecretManager.GetSecret",
+		},
+		{
+			input: "google.pubsub.v1.Publisher/Publish",
+			want:  "Publisher.Publish",
+		},
+		{
+			input: "google.spanner.admin.instance.v1.InstanceAdmin/DeleteInstance",
+			want:  "InstanceAdmin.DeleteInstance",
+		},
+		{
+			input: "google.cloud.speech.v1.Speech/Recognize",
+			want:  "Speech.Recognize",
+		},
+		{
+			input: "SpeechService/Recognize",
+			want:  "Speech.Recognize",
+		},
+		{
+			input: "Service/Method",
+			want:  "Service.Method",
+		},
+		{
+			input: "my.service/Method",
+			want:  "service.Method",
+		},
+		{
+			input: "GetSecret",
+			want:  "GetSecret",
+		},
+		{
+			input: "/GetSecret",
+			want:  "/GetSecret",
+		},
+		{
+			input: "SecretManager/",
+			want:  "SecretManager/",
+		},
+		{
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		got := formatServiceMethod(tt.input)
+		if got != tt.want {
+			t.Errorf("formatServiceMethod(%q) = %q, want %q", tt.input, got, tt.want)
+		}
 	}
 }
 
@@ -1146,8 +1205,8 @@ func TestStartSpan(t *testing.T) {
 			t.Fatalf("len(spans) = %d, want 1", len(spans))
 		}
 		s := spans[0]
-		if s.Name != "google.cloud.speech.v1.Speech/Recognize" {
-			t.Errorf("span.Name = %q, want google.cloud.speech.v1.Speech/Recognize", s.Name)
+		if s.Name != "Speech.Recognize" {
+			t.Errorf("span.Name = %q, want Speech.Recognize", s.Name)
 		}
 		if s.SpanKind != trace.SpanKindClient {
 			t.Errorf("span.SpanKind = %v, want %v", s.SpanKind, trace.SpanKindClient)
