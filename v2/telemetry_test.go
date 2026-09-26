@@ -1117,7 +1117,7 @@ func TestStartSpan(t *testing.T) {
 		}
 	})
 
-	t.Run("gRPC with resource_name", func(t *testing.T) {
+	t.Run("gRPC method", func(t *testing.T) {
 		exporter := tracetest.NewInMemoryExporter()
 		tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
 		ct := NewClientTracing(
@@ -1131,7 +1131,6 @@ func TestStartSpan(t *testing.T) {
 		)
 
 		ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "google.cloud.speech.v1.Speech/Recognize")
-		ctx = callctx.WithTelemetryContext(ctx, "resource_name", "projects/p/locations/global")
 
 		gotCtx, span := startSpan(ctx, ct)
 		if span == nil {
@@ -1159,10 +1158,9 @@ func TestStartSpan(t *testing.T) {
 			gotAttrs[string(a.Key)] = a.Value.AsString()
 		}
 		wantAttrs := map[string]string{
-			"url.domain":                  "speech.googleapis.com",
-			"rpc.system.name":             "grpc",
-			"gcp.client.service":          "speech",
-			"gcp.resource.destination.id": "projects/p/locations/global",
+			"url.domain":         "speech.googleapis.com",
+			"rpc.system.name":    "grpc",
+			"gcp.client.service": "speech",
 		}
 		if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {
 			t.Errorf("Attributes mismatch (-want +got):\n%s", diff)

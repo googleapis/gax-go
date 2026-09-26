@@ -533,15 +533,12 @@ func startSpan(ctx context.Context, ct *ClientTracing) (context.Context, trace.S
 	}
 	spanName := resolveSpanName(ctx)
 	staticAttrs := ct.attributes()
-	attrs := make([]attribute.KeyValue, 0, len(staticAttrs)+2)
+	attrs := make([]attribute.KeyValue, 0, len(staticAttrs)+1)
 	attrs = append(attrs, staticAttrs...)
 	if urlTemplate, ok := callctx.TelemetryFromContext(ctx, "url_template"); ok && urlTemplate != "" {
 		if sanitized := sanitizeURLTemplate(urlTemplate); sanitized != "" {
 			attrs = append(attrs, attribute.String("url.template", sanitized))
 		}
-	}
-	if resName, ok := callctx.TelemetryFromContext(ctx, "resource_name"); ok && resName != "" {
-		attrs = append(attrs, attribute.String("gcp.resource.destination.id", resName))
 	}
 	return tracer.Start(
 		ctx,

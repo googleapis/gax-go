@@ -267,7 +267,6 @@ func TestInvokeWithTracing(t *testing.T) {
 			name: "success_grpc",
 			setupCtx: func() (context.Context, context.CancelFunc) {
 				ctx := callctx.WithTelemetryContext(context.Background(), "rpc_method", "my.service.Method")
-				ctx = callctx.WithTelemetryContext(ctx, "resource_name", "projects/p/locations/global")
 				return ctx, func() {}
 			},
 			callFunc: func(ctx context.Context, settings CallSettings) error {
@@ -280,10 +279,9 @@ func TestInvokeWithTracing(t *testing.T) {
 			wantName:   "my.service.Method",
 			wantStatus: otelcodes.Ok,
 			wantDataAttr: map[string]string{
-				"url.domain":                  "test.domain",
-				"rpc.system.name":             "grpc",
-				"rpc.response.status_code":    "OK",
-				"gcp.resource.destination.id": "projects/p/locations/global",
+				"url.domain":               "test.domain",
+				"rpc.system.name":          "grpc",
+				"rpc.response.status_code": "OK",
 			},
 			wantErr: false,
 		},
