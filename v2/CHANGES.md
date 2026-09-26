@@ -1,5 +1,13 @@
 # Changes
 
+## [2.26.1](https://github.com/googleapis/gax-go/compare/v2.26.0...v2.26.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* correct 1.27 protojson handling ([#558](https://github.com/googleapis/gax-go/issues/558)) ([c1e035d](https://github.com/googleapis/gax-go/commit/c1e035db278d4e60f22da30e5b4772788dd76b20))
+* **o11y:** remove deprioritized gcp.resource.destination.id span attribute ([#559](https://github.com/googleapis/gax-go/issues/559)) ([a6f48a2](https://github.com/googleapis/gax-go/commit/a6f48a2061f4cd09cd54054032a2200d519d0283))
+
 ## [2.26.0](https://github.com/googleapis/gax-go/compare/v2.25.0...v2.26.0) (2026-09-22)
 
 
