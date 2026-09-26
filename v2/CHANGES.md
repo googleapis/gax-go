@@ -1,5 +1,12 @@
 # Changes
 
+## [2.26.2](https://github.com/googleapis/gax-go/compare/v2.26.1...v2.26.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* **o11y:** name client request spans as {Service}.{Method} ([#560](https://github.com/googleapis/gax-go/issues/560)) ([1a022c8](https://github.com/googleapis/gax-go/commit/1a022c86141e8e02574dfdfbc979cc95111411e0))
+
 ## [2.26.1](https://github.com/googleapis/gax-go/compare/v2.26.0...v2.26.1) (2026-09-26)
 
 
