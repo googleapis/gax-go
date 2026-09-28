@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/googleapis/gax-go/v2 v2.23.0
+	golang.org/x/mod v0.38.0
 	google.golang.org/grpc v1.83.2
 )
 
