@@ -30,6 +30,7 @@
 package gax
 
 import (
+	"errors"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -71,6 +72,7 @@ func TestValidatePathExpressions(t *testing.T) {
 				func() string { return "foo" }(),
 				func() int { return 8 }(),
 				func() []byte { return []byte{'.'} }(),
+				func() string { return ".." }(),
 			},
 			wantErr: true,
 		},
@@ -80,6 +82,9 @@ func TestValidatePathExpressions(t *testing.T) {
 			if tc.wantErr {
 				if err == nil {
 					t.Errorf("expected err, got success")
+				}
+				if !errors.Is(err, PathExpressionError) {
+					t.Errorf("expected PathExpressionError, got %T: %v", err, err)
 				}
 			} else {
 				if err != nil {

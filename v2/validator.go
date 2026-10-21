@@ -32,19 +32,21 @@ package gax
 import (
 	"errors"
 	"fmt"
-	"log"
 	"slices"
 )
 
+var PathExpressionError = errors.New("invalid values present in values used to construct an HTTP URL")
+
 // This function ensure values being used to construct an HTTP URL path
 // for REST-based SDK transports do not contain problematic values.
+//
+// It will return PathExpressionError if validation fails.
 func ValidatePathExpressions(vals ...any) error {
 	disallowedStringValues := []string{".", ".."}
 	for _, v := range vals {
 		s := fmt.Sprint(v)
-		log.Printf("s: %q", s)
 		if slices.Contains(disallowedStringValues, s) {
-			return errors.New("disallowed values present")
+			return PathExpressionError
 		}
 	}
 	return nil
