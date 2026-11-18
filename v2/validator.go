@@ -33,6 +33,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 var PathExpressionError = errors.New("invalid values present in values used to construct an HTTP URL")
@@ -45,8 +46,10 @@ func ValidatePathExpressions(vals ...any) error {
 	disallowedStringValues := []string{".", ".."}
 	for _, v := range vals {
 		s := fmt.Sprint(v)
-		if slices.Contains(disallowedStringValues, s) {
-			return PathExpressionError
+		for _, seg := range strings.Split(s, "/") {
+			if slices.Contains(disallowedStringValues, seg) {
+				return PathExpressionError
+			}
 		}
 	}
 	return nil
