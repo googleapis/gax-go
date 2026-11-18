@@ -77,14 +77,14 @@ func TestValidatePathExpressions(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc: "seperator with disallowed",
+			desc: "separator with disallowed",
 			in: []any{
 				func() string { return "foo/../bar" }(),
 			},
 			wantErr: true,
 		},
 		{
-			desc: "partial seperator with disallowed",
+			desc: "partial separator with disallowed",
 			in: []any{
 				func() string { return "foo/.." }(),
 			},
