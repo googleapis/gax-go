@@ -1,5 +1,12 @@
 # Changes
 
+## [2.27.1](https://github.com/googleapis/gax-go/compare/v2.27.0...v2.27.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* augment path validator to disallow within path segments ([#574](https://github.com/googleapis/gax-go/issues/574)) ([04b3326](https://github.com/googleapis/gax-go/commit/04b33264764e39de1cf4cdd14a3d3e83b2d1523e))
+
 ## [2.27.0](https://github.com/googleapis/gax-go/compare/v2.26.2...v2.27.0) (2026-10-21)
 
 
