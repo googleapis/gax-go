@@ -31,12 +31,13 @@ package apierror
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
-	"os"
-
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -215,18 +216,9 @@ func TestError(t *testing.T) {
 	uS := status.New(codes.Unknown, "Unknown")
 
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
-	any, err := anypb.New(httpErrInfo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
-	data, err := protojson.Marshal(e)
-	if err != nil {
-		t.Fatal(err)
-	}
 	hae := &googleapi.Error{
 		Message: "just because",
-		Body:    string(data),
+		Body:    marshalHTTPErrorBody(t, httpErrInfo),
 	}
 	haeS := status.New(codes.Unknown, "just because")
 
@@ -387,18 +379,9 @@ func TestFromError(t *testing.T) {
 	uS, _ := status.New(codes.Unknown, "test").WithDetails(msg)
 
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
-	any, err := anypb.New(httpErrInfo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
-	data, err := protojson.Marshal(e)
-	if err != nil {
-		t.Fatal(err)
-	}
 	hae := &googleapi.Error{
 		Message: "just because",
-		Body:    string(data),
+		Body:    marshalHTTPErrorBody(t, httpErrInfo),
 	}
 	haeS := status.New(codes.Unknown, "just because")
 
@@ -449,18 +432,9 @@ func TestFromError(t *testing.T) {
 
 func TestParseError(t *testing.T) {
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
-	any, err := anypb.New(httpErrInfo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
-	data, err := protojson.Marshal(e)
-	if err != nil {
-		t.Fatal(err)
-	}
 	hae := &googleapi.Error{
 		Message: "just because",
-		Body:    string(data),
+		Body:    marshalHTTPErrorBody(t, httpErrInfo),
 	}
 	haeS := status.New(codes.Unknown, "just because")
 
@@ -642,5 +616,197 @@ func TestHTTPErrorAsStatus(t *testing.T) {
 			}
 		})
 
+	}
+}
+
+func marshalHTTPErrorBody(t *testing.T, msgs ...proto.Message) string {
+	t.Helper()
+	rawDetails := make([]json.RawMessage, 0, len(msgs))
+	for _, m := range msgs {
+		a, err := anypb.New(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := protojson.Marshal(a)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rawDetails = append(rawDetails, b)
+	}
+	payload := struct {
+		Error struct {
+			Details []json.RawMessage `json:"details"`
+		} `json:"error"`
+	}{}
+	payload.Error.Details = rawDetails
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func TestParseHTTPDetails(t *testing.T) {
+	t.Run("legacy errors array and unregistered @type preserve standard ErrorInfo", func(t *testing.T) {
+		unregisteredDetail := `{"@type":"type.googleapis.com/edge.configstore.bundle.BadBundle","violations":[{"description":"The proxy must contain a ProxyEndpoint"}]}`
+		rawBody := `{
+  "error": {
+    "code": 400,
+    "message": "bundle contains errors",
+    "status": "INVALID_ARGUMENT",
+    "errors": [{"message": "bundle contains errors", "domain": "global", "reason": "badRequest"}],
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "BUNDLE_INVALID",
+        "domain": "apigee.googleapis.com"
+      },
+      ` + unregisteredDetail + `
+    ]
+  }
+}`
+		httpErr := &googleapi.Error{
+			Code:    http.StatusBadRequest,
+			Message: "bundle contains errors",
+			Body:    rawBody,
+		}
+
+		apiErr, ok := FromError(httpErr)
+		if !ok {
+			t.Fatal("FromError returned false, want true")
+		}
+		if got, want := apiErr.Reason(), "BUNDLE_INVALID"; got != want {
+			t.Errorf("Reason() = %q, want %q", got, want)
+		}
+		if got, want := apiErr.Domain(), "apigee.googleapis.com"; got != want {
+			t.Errorf("Domain() = %q, want %q", got, want)
+		}
+		wantInfo := &errdetails.ErrorInfo{
+			Reason: "BUNDLE_INVALID",
+			Domain: "apigee.googleapis.com",
+		}
+		if diff := cmp.Diff(apiErr.Details().ErrorInfo, wantInfo, protocmp.Transform()); diff != "" {
+			t.Errorf("ErrorInfo mismatch (-got +want):\n%s", diff)
+		}
+		if len(apiErr.Details().Unknown) != 1 {
+			t.Fatalf("len(Unknown) = %d, want 1", len(apiErr.Details().Unknown))
+		}
+		rawUnknown, ok := apiErr.Details().Unknown[0].(json.RawMessage)
+		if !ok {
+			t.Fatalf("Unknown[0] type = %T, want json.RawMessage", apiErr.Details().Unknown[0])
+		}
+		if diff := cmp.Diff(string(rawUnknown), unregisteredDetail); diff != "" {
+			t.Errorf("Unknown[0] mismatch (-got +want):\n%s", diff)
+		}
+		if !strings.Contains(apiErr.Error(), "edge.configstore.bundle.BadBundle") {
+			t.Errorf("Error() = %q, want it to contain unregistered @type JSON", apiErr.Error())
+		}
+	})
+
+	t.Run("array envelope with leading whitespace", func(t *testing.T) {
+		rawBody := `  [{"error":{"code":400,"message":"bad request","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"INVALID_FIELD","domain":"example.googleapis.com"}]}}]`
+		httpErr := &googleapi.Error{
+			Code:    http.StatusBadRequest,
+			Message: "bad request",
+			Body:    rawBody,
+		}
+		apiErr, ok := FromError(httpErr)
+		if !ok {
+			t.Fatal("FromError returned false, want true")
+		}
+		if got, want := apiErr.Reason(), "INVALID_FIELD"; got != want {
+			t.Errorf("Reason() = %q, want %q", got, want)
+		}
+		if got, want := apiErr.Domain(), "example.googleapis.com"; got != want {
+			t.Errorf("Domain() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("unknown field inside known proto detail is discarded", func(t *testing.T) {
+		rawBody := `{"error":{"code":400,"message":"bad request","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SOME_REASON","domain":"example.googleapis.com","extraField":"ignored"}]}}`
+		httpErr := &googleapi.Error{
+			Code:    http.StatusBadRequest,
+			Message: "bad request",
+			Body:    rawBody,
+		}
+		apiErr, ok := FromError(httpErr)
+		if !ok {
+			t.Fatal("FromError returned false, want true")
+		}
+		if got, want := apiErr.Reason(), "SOME_REASON"; got != want {
+			t.Errorf("Reason() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("registered custom proto extracted alongside unregistered @type", func(t *testing.T) {
+		wantCustom := &jsonerror.CustomError{
+			Code:         jsonerror.CustomError_UNIVERSE_WAS_DESTROYED,
+			Entity:       "world",
+			ErrorMessage: "boom",
+		}
+		customAny, err := anypb.New(wantCustom)
+		if err != nil {
+			t.Fatal(err)
+		}
+		customJSON, err := protojson.Marshal(customAny)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rawBody := `{"error":{"code":500,"message":"boom","details":[` + string(customJSON) + `,{"@type":"type.googleapis.com/unregistered.Detail","foo":"bar"}]}}`
+		httpErr := &googleapi.Error{
+			Code:    http.StatusInternalServerError,
+			Message: "boom",
+			Body:    rawBody,
+		}
+		apiErr, ok := FromError(httpErr)
+		if !ok {
+			t.Fatal("FromError returned false, want true")
+		}
+		gotCustom := &jsonerror.CustomError{}
+		if err := apiErr.Details().ExtractProtoMessage(gotCustom); err != nil {
+			t.Fatalf("ExtractProtoMessage failed: %v", err)
+		}
+		if diff := cmp.Diff(gotCustom, wantCustom, protocmp.Transform()); diff != "" {
+			t.Errorf("CustomError mismatch (-got +want):\n%s", diff)
+		}
+		if len(apiErr.Details().Unknown) != 2 {
+			t.Errorf("len(Unknown) = %d, want 2", len(apiErr.Details().Unknown))
+		}
+	})
+
+	t.Run("malformed or empty array envelopes do not panic", func(t *testing.T) {
+		for _, body := range []string{"", "[]", "[{}]", "not json"} {
+			httpErr := &googleapi.Error{
+				Code: http.StatusInternalServerError,
+				Body: body,
+			}
+			apiErr, ok := FromError(httpErr)
+			if !ok {
+				t.Fatalf("FromError(%q) returned false, want true", body)
+			}
+			if diff := cmp.Diff(apiErr.Details(), ErrDetails{}); diff != "" {
+				t.Errorf("FromError(%q).Details() mismatch (-got +want):\n%s", body, diff)
+			}
+		}
+	})
+}
+
+func TestHTTPErrorNonJSONBodyFallback(t *testing.T) {
+	htmlBody := "<html><title>502 Bad Gateway</title></html>"
+	httpErr := &googleapi.Error{
+		Code: http.StatusBadGateway,
+		Body: htmlBody,
+	}
+
+	apiErr, ok := FromError(httpErr)
+	if !ok {
+		t.Fatal("FromError returned false, want true")
+	}
+	want := "googleapi: Error 502: " + htmlBody
+	if got := apiErr.Error(); got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+	if diff := cmp.Diff(apiErr.Details(), ErrDetails{}); diff != "" {
+		t.Errorf("Details() mismatch (-got +want):\n%s", diff)
 	}
 }
