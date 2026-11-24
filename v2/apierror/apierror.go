@@ -36,18 +36,20 @@
 package apierror
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
-	jsonerror "github.com/googleapis/gax-go/v2/apierror/internal/proto"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // canonicalMap maps HTTP codes to gRPC status code equivalents.
@@ -187,7 +189,11 @@ func (e ErrDetails) String() string {
 	if e.Unknown != nil {
 		var s []string
 		for _, x := range e.Unknown {
-			s = append(s, fmt.Sprintf("%v", x))
+			if raw, ok := x.(json.RawMessage); ok {
+				s = append(s, string(raw))
+			} else {
+				s = append(s, fmt.Sprintf("%v", x))
+			}
 		}
 		d.WriteString(fmt.Sprintf("error details: name = Unknown  desc = %s\n", strings.Join(s, " ")))
 	}
@@ -238,8 +244,13 @@ func (a *APIError) Error() string {
 	var msg string
 	if a.httpErr != nil {
 		// Truncate the googleapi.Error message because it dumps the Details in
-		// an ugly way.
-		msg = fmt.Sprintf("googleapi: Error %d: %s", a.httpErr.Code, a.httpErr.Message)
+		// an ugly way. Fall back to Body when Message is empty (e.g., non-JSON
+		// HTML or plain-text error responses).
+		text := a.httpErr.Message
+		if text == "" {
+			text = a.httpErr.Body
+		}
+		msg = fmt.Sprintf("googleapi: Error %d: %s", a.httpErr.Code, text)
 	} else if a.status != nil && a.err != nil {
 		msg = a.err.Error()
 	} else if a.status != nil {
@@ -376,27 +387,60 @@ func parseDetails(details []interface{}) ErrDetails {
 	return ed
 }
 
-// parseHTTPDetails will convert the given googleapi.Error into the protobuf
-// representation then parse the Any values that contain the error details.
+type httpErrorEnvelope struct {
+	Error *struct {
+		Details []json.RawMessage `json:"details"`
+	} `json:"error"`
+}
+
+func decodeHTTPEnvelope(body []byte) *httpErrorEnvelope {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil
+	}
+	if trimmed[0] == '[' {
+		var arr []httpErrorEnvelope
+		if err := json.Unmarshal(trimmed, &arr); err == nil && len(arr) > 0 && arr[0].Error != nil {
+			return &arr[0]
+		}
+		return nil
+	}
+	var env httpErrorEnvelope
+	if err := json.Unmarshal(trimmed, &env); err != nil || env.Error == nil {
+		return nil
+	}
+	return &env
+}
+
+// parseHTTPDetails parses the structured error details from a googleapi.Error
+// JSON body. Each detail entry is decoded independently so that unknown
+// envelope fields (such as legacy errors[]) or unregistered @type entries do
+// not discard sibling standard details.
 //
 // This is for internal use only.
 func parseHTTPDetails(gae *googleapi.Error) ErrDetails {
-	e := &jsonerror.Error{}
-	if err := protojson.Unmarshal([]byte(gae.Body), e); err != nil {
+	env := decodeHTTPEnvelope([]byte(gae.Body))
+	if env == nil {
 		// If the error body does not conform to the error schema, ignore it
-		// altogther. See https://cloud.google.com/apis/design/errors#http_mapping.
+		// altogether. See https://cloud.google.com/apis/design/errors#http_mapping.
 		return ErrDetails{}
 	}
 
-	// Coerce the Any messages into proto.Message then parse the details.
-	details := []interface{}{}
-	for _, any := range e.GetError().GetDetails() {
-		m, err := any.UnmarshalNew()
-		if err != nil {
-			// Ignore malformed Any values.
+	unm := protojson.UnmarshalOptions{DiscardUnknown: true}
+	var details []interface{}
+	for _, raw := range env.Error.Details {
+		var anyMsg anypb.Any
+		if err := unm.Unmarshal(raw, &anyMsg); err != nil {
+			// Unregistered @type or non-Any detail: keep raw JSON in Unknown
+			// without aborting sibling standard details.
+			details = append(details, raw)
 			continue
 		}
-		details = append(details, m)
+		if m, err := anyMsg.UnmarshalNew(); err == nil {
+			details = append(details, m)
+		} else {
+			details = append(details, &anyMsg)
+		}
 	}
 
 	return parseDetails(details)
