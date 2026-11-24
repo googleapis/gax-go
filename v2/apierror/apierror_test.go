@@ -216,9 +216,18 @@ func TestError(t *testing.T) {
 	uS := status.New(codes.Unknown, "Unknown")
 
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
+	any, err := anypb.New(httpErrInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
+	data, err := protojson.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
 	hae := &googleapi.Error{
 		Message: "just because",
-		Body:    marshalHTTPErrorBody(t, httpErrInfo),
+		Body:    string(data),
 	}
 	haeS := status.New(codes.Unknown, "just because")
 
@@ -379,9 +388,18 @@ func TestFromError(t *testing.T) {
 	uS, _ := status.New(codes.Unknown, "test").WithDetails(msg)
 
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
+	any, err := anypb.New(httpErrInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
+	data, err := protojson.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
 	hae := &googleapi.Error{
 		Message: "just because",
-		Body:    marshalHTTPErrorBody(t, httpErrInfo),
+		Body:    string(data),
 	}
 	haeS := status.New(codes.Unknown, "just because")
 
@@ -432,9 +450,18 @@ func TestFromError(t *testing.T) {
 
 func TestParseError(t *testing.T) {
 	httpErrInfo := &errdetails.ErrorInfo{Reason: "just because", Domain: "tests"}
+	any, err := anypb.New(httpErrInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &jsonerror.Error{Error: &jsonerror.Error_Status{Details: []*anypb.Any{any}}}
+	data, err := protojson.Marshal(e)
+	if err != nil {
+		t.Fatal(err)
+	}
 	hae := &googleapi.Error{
 		Message: "just because",
-		Body:    marshalHTTPErrorBody(t, httpErrInfo),
+		Body:    string(data),
 	}
 	haeS := status.New(codes.Unknown, "just because")
 
@@ -617,33 +644,6 @@ func TestHTTPErrorAsStatus(t *testing.T) {
 		})
 
 	}
-}
-
-func marshalHTTPErrorBody(t *testing.T, msgs ...proto.Message) string {
-	t.Helper()
-	rawDetails := make([]json.RawMessage, 0, len(msgs))
-	for _, m := range msgs {
-		a, err := anypb.New(m)
-		if err != nil {
-			t.Fatal(err)
-		}
-		b, err := protojson.Marshal(a)
-		if err != nil {
-			t.Fatal(err)
-		}
-		rawDetails = append(rawDetails, b)
-	}
-	payload := struct {
-		Error struct {
-			Details []json.RawMessage `json:"details"`
-		} `json:"error"`
-	}{}
-	payload.Error.Details = rawDetails
-	data, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
 }
 
 func TestParseHTTPDetails(t *testing.T) {
